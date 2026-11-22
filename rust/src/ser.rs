@@ -64,7 +64,7 @@ where
 /// Empty:
 ///   0xff
 ///   0
-fn write_list(values: &[Value], buf: &mut Vec<u8>) -> Result<()> {
+fn write_list<W: std::io::Write>(values: &[Value], buf: &mut W) -> Result<()> {
     let count = u64::try_from(values.len()).map_err(|_| Error::new(ErrorKind::LengthOverflow))?;
 
     let element_id = values
@@ -80,8 +80,8 @@ fn write_list(values: &[Value], buf: &mut Vec<u8>) -> Result<()> {
         SPECIALCASE_LIST_KEY
     };
 
-    buf.push(list_type_id);
-    write_varint(buf, count);
+    buf.write_all(&[list_type_id])?;
+    write_varint(buf, count)?;
 
     for value in values {
         value.to_bytes_inner(buf, homogeneous)?;
@@ -91,13 +91,14 @@ fn write_list(values: &[Value], buf: &mut Vec<u8>) -> Result<()> {
 }
 
 /// writes an unsigned integer as a base-128 variable-length integer
-pub(super) fn write_varint(buf: &mut Vec<u8>, mut value: u64) {
+pub(super) fn write_varint<W: std::io::Write>(buf: &mut W, mut value: u64) -> Result<()> {
     while value >= 0x80 {
-        buf.push((value as u8) | 0x80);
+        buf.write_all(&[(value as u8) | 0x80])?;
         value >>= 7;
     }
 
-    buf.push(value as u8);
+    buf.write_all(&[value as u8])?;
+    Ok(())
 }
 
 /// encodes a signed integer using ZigZag encoding
@@ -108,11 +109,11 @@ const fn zigzag_encode(value: i64) -> u64 {
 /// writes a length-prefixed byte slice
 ///
 /// the length is encoded as an unsigned base-128 variable-length integer
-fn write_len_prefixed(buf: &mut Vec<u8>, value: &[u8]) -> Result<()> {
+fn write_len_prefixed<W: std::io::Write>(buf: &mut W, value: &[u8]) -> Result<()> {
     let len = u64::try_from(value.len()).map_err(|_| Error::new(ErrorKind::LengthOverflow))?;
 
-    write_varint(buf, len);
-    buf.extend_from_slice(value);
+    write_varint(buf, len)?;
+    buf.write_all(value)?;
 
     Ok(())
 }
@@ -139,23 +140,24 @@ impl Value {
         Ok(buf)
     }
 
-    fn to_bytes_inner(&self, buf: &mut Vec<u8>, skip_id: bool) -> Result<()> {
+    // fn to_bytes_inner(&self, buf: &mut Vec<u8>, skip_id: bool) -> Result<()> {
+    fn to_bytes_inner<W: std::io::Write>(&self, buf: &mut W, skip_id: bool) -> Result<()> {
         if !skip_id {
-            buf.push(self.id());
+            buf.write_all(&[self.id()])?;
         }
         match self {
             Self::Null => (),
-            Self::Bool(value) => buf.push(u8::from(*value)),
-            Self::Uint(value) => write_varint(buf, *value),
-            Self::Int(value) => write_varint(buf, zigzag_encode(*value)),
-            Self::Float32(value) => buf.extend_from_slice(&value.to_le_bytes()),
-            Self::Float64(value) => buf.extend_from_slice(&value.to_le_bytes()),
+            Self::Bool(value) => buf.write_all(&[u8::from(*value)])?,
+            Self::Uint(value) => write_varint(buf, *value)?,
+            Self::Int(value) => write_varint(buf, zigzag_encode(*value))?,
+            Self::Float32(value) => buf.write_all(&value.to_le_bytes())?,
+            Self::Float64(value) => buf.write_all(&value.to_le_bytes())?,
             Self::String(value) => write_len_prefixed(buf, value.as_bytes())?,
             Self::Bytes(value) => write_len_prefixed(buf, value)?,
             Self::List(values) => write_list(values, buf)?,
             Self::Object(entries) => {
                 let mut data = Vec::with_capacity(entries.len() * 2 + 1);
-                write_varint(&mut data, entries.len() as u64);
+                write_varint(&mut data, entries.len() as u64)?;
                 for (key, value) in entries {
                     match key {
                         Key::String(key_str) => {
@@ -164,12 +166,12 @@ impl Value {
                         }
                         Key::Hashed(id) => {
                             data.push(0x00); // key type ID for hashed
-                            write_varint(&mut data, *id);
+                            write_varint(&mut data, *id)?;
                         }
                     }
                     value.to_bytes_inner(&mut data, false)?;
                 }
-                buf.extend_from_slice(&data);
+                buf.write_all(&data)?;
             }
         }
         Ok(())

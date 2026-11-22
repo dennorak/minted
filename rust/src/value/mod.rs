@@ -3,6 +3,70 @@ use std::collections::HashMap;
 pub mod de;
 pub mod ser;
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tags_count {
+    () => { 0usize };
+    ($head:expr $(, $tail:expr)*) => {
+        1usize + $crate::__tags_count!($($tail),*)
+    };
+}
+
+/// Creates a [`Value`]
+#[macro_export]
+macro_rules! value {
+    () => {
+        $crate::Value::default()
+    };
+
+    (
+        $(
+            $key:ident => $value:expr
+        ),* $(,)?
+    ) => {{
+        let mut items = std::collections::HashMap::with_capacity(
+            $crate::__tags_count!($(stringify!($key)),*)
+        );
+
+        $(
+            items.insert(stringify!($key).into(), $value.into());
+        )*
+
+        $crate::Value::Object(items)
+    }};
+}
+
+macro_rules! impl_from_tupl {
+    (@impl $($n:literal),+) => {
+        paste::paste! {
+            impl<$([<T $n>]: Into<Value>),+>
+                From<($([<T $n>],)+)> for Value
+            {
+                #[allow(non_snake_case)]
+                fn from(($([<T $n>],)+): ($([<T $n>],)+)) -> Self {
+                    Value::List(vec![$([<T $n>].into(),)+])
+                }
+            }
+        }
+    };
+
+    (@expand ($($done:literal,)*) $next:literal $(, $rest:literal)*) => {
+        impl_from_tupl!(@impl $($done,)* $next);
+        impl_from_tupl!(@expand ($($done,)* $next,) $($rest),*);
+    };
+
+    (@expand ($($done:literal,)*)) => {};
+
+    (16) => {
+        impl_from_tupl!(@expand ()
+            0, 1, 2, 3, 4, 5, 6, 7,
+            8, 9, 10, 11, 12, 13, 14, 15
+        );
+    };
+}
+
+impl_from_tupl!(16);
+
 /// A key for a value in a map
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
@@ -40,14 +104,91 @@ pub enum Value {
     #[mint(id = 0x06)]
     String(String),
     /// A binary blob value
-    #[mint(id = 0x07)]
+    #[mint(id = 0x07, exclude_from)]
     Bytes(Vec<u8>),
     /// A heterogeneous list of values
-    #[mint(id = 0x08)]
+    #[mint(id = 0x08, exclude_from)]
     List(Vec<Value>),
     /// A map of values
-    #[mint(id = 0x09)]
+    #[mint(id = 0x09, exclude_from)]
     Object(HashMap<Key, Value>),
+}
+
+impl From<&str> for Value
+{
+	fn from(value: &str) -> Self { Self::String(value.to_owned()) }
+}
+
+impl<'a> TryFrom<&'a Value> for &'a str
+{
+	type Error = ();
+
+	fn try_from(value: &'a Value) -> Result<Self, Self::Error>
+	{
+		if let Value::String(s) = value { Ok(s) } else { Err(()) }
+	}
+}
+
+impl<'a, T: Into<Value>> From<Vec<T>> for Value
+{
+	fn from(value: Vec<T>) -> Self { Self::List(value.into_iter().map(|v| v.into()).collect()) }
+}
+
+impl<'a, T> TryFrom<&'a Value> for Vec<&'a T>
+where
+	&'a T: TryFrom<&'a Value, Error = ()>,
+{
+	type Error = ();
+
+	fn try_from(value: &'a Value) -> Result<Self, Self::Error>
+	{
+		if let Value::List(list) = value
+		{
+			list.iter().map(|v| v.try_into()).collect()
+		}
+		else
+		{
+			Err(())
+		}
+	}
+}
+
+impl<T: Into<Value>> From<HashMap<String, T>> for Value
+{
+    fn from(value: HashMap<String, T>) -> Self
+    {
+        Self::Object(value.into_iter().map(|(k, v)| (Key::String(k), v.into())).collect())
+    }
+}
+
+impl From<&str> for Key {
+    fn from(s: &str) -> Self {
+        Key::String(s.to_string())
+    }
+}
+
+impl From<String> for Key {
+    fn from(s: String) -> Self {
+        Key::String(s)
+    }
+}
+
+impl From<u64> for Key {
+    fn from(h: u64) -> Self {
+        Key::Hashed(h)
+    }
+}
+
+impl<T> From<Option<T>> for Value
+where
+    T: Into<Value>,
+{
+    fn from(opt: Option<T>) -> Self {
+        match opt {
+            Some(value) => value.into(),
+            None => Value::Null,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -342,5 +483,47 @@ mod tests {
 
         assert!(to_value_named(&map).is_err());
         assert!(to_value_hashed(&map).is_err());
+    }
+
+
+    #[test]
+    fn test_macro() {
+        let value = value! {
+            a => 42,
+            b => "Hello, world!",
+            c => vec![1, 2, 3, 4, 5],
+            d => true,
+            e => vec![
+                value! {
+                    a => 1,
+                    b => "Nested",
+                    c => Vec::<u32>::new(),
+                    d => None::<bool>,
+                    e => Vec::<Value>::new(),
+                    f => HashMap::<String, Value>::new(),
+                },
+                value! {
+                    a => 2,
+                    b => "Another",
+                    c => vec![6, 7, 8],
+                    d => false,
+                    e => Vec::<Value>::new(),
+                    f => HashMap::<String, Value>::new(),
+                },
+            ],
+            f => value! {
+                key1 => "Unit",
+                key2 => value! { NewType => 123 },
+                key3 => value! { Tuple => (456, "Tuple") },
+                key4 => value! { 
+                    Struct => value! {
+                        a => 789,
+                        b => "Struct",
+                    }
+                },
+            },
+        };
+
+        check_deserialization(value, &test_struct());
     }
 }

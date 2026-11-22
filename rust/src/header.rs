@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 
 use crate::{Error, error::ErrorKind};
 
@@ -41,10 +41,6 @@ impl Default for Header {
 }
 
 impl Header {
-    pub(crate) const fn size() -> usize {
-        HEADER_SIZE
-    }
-
     pub(crate) fn new(length: u32) -> Self {
         Self {
             magic: MAGIC,
@@ -107,13 +103,5 @@ impl Header {
         reader.read_exact(&mut bytes)?;
         let header = Self::from_bytes(&bytes)?;
         Ok(header)
-    }
-
-    /// writes a header to the reader
-    pub(crate) fn to_writer<W: Write>(self, writer: &mut W) -> Result<(), Error> {
-        let mut bytes = Vec::with_capacity(HEADER_SIZE);
-        self.write_buf(&mut bytes);
-        writer.write_all(&bytes)?;
-        Ok(())
     }
 }

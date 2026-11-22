@@ -1,0 +1,15 @@
+[package]
+name = "minted"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+minted-macros.path = "./macros"
+paste = "1.0.15"
+serde_bytes = "0.11.19"
+
+[features]
+default = ["tags", "rpc"]
+tags = []
+rpc = []

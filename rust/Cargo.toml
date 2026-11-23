@@ -14,7 +14,7 @@ edition.workspace = true
 [dependencies]
 # general
 serde = { version = "1.0.229", features = ["derive"] }
-minted-macros.path = "./macros"
+minted-macros = { path = "./macros", version = "0.1.0", registry = "rocks" }
 thiserror = "2.0.21"
 paste = "1.0.15"
 # rpc

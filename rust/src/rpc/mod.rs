@@ -24,33 +24,37 @@ pub use peer::{RpcContext, RpcDispatcher, RpcNotification, RpcPeer, RpcPeerConfi
 /// requests; response IDs are scoped to the sender's connection state.
 /// A single RPC message. Request IDs are scoped to a connection.
 #[derive(Debug, PartialEq, Clone)]
-pub enum RpcMessage {
-    /// A method invocation that expects a response.
-    Request {
-        /// The ID of the request.
-        id: u64,
-        /// The name of the method to invoke.
-        method: String,
-        /// The parameters to pass to the method.
-        params: Value,
-    },
-    /// A completed request, including application-level failures.
-    Response {
-        /// The ID of the request being responded to.
-        id: u64,
-        /// The result of the request, if it succeeded.
-        ///
-        /// This is serialized as two fields: `result` for success and `error` for failure.
-        /// Only one of these fields will be present in the serialized message.
-        result: RpcResult<Value>,
-    },
-    /// A one-way method invocation.
-    Notification {
-        /// The name of the method to invoke.
-        method: String,
-        /// The parameters to pass to the method.
-        params: Value,
-    },
+pub enum RpcMessage
+{
+	/// A method invocation that expects a response.
+	Request
+	{
+		/// The ID of the request.
+		id:     u64,
+		/// The name of the method to invoke.
+		method: String,
+		/// The parameters to pass to the method.
+		params: Value,
+	},
+	/// A completed request, including application-level failures.
+	Response
+	{
+		/// The ID of the request being responded to.
+		id:     u64,
+		/// The result of the request, if it succeeded.
+		///
+		/// This is serialized as two fields: `result` for success and `error` for failure.
+		/// Only one of these fields will be present in the serialized message.
+		result: RpcResult<Value>,
+	},
+	/// A one-way method invocation.
+	Notification
+	{
+		/// The name of the method to invoke.
+		method: String,
+		/// The parameters to pass to the method.
+		params: Value,
+	},
 }
 
 #[cfg(test)]

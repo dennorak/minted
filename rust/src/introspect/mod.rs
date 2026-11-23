@@ -1,5 +1,5 @@
-//! This module provides the `Introspect` and `IntrospectValue` traits, which allow for type-safe access to values stored in a [`Values`] collection or a [`Value`] value.
-//! These traits are implemented for types that can be represented as a collection of key-value pairs, such as structs and enums.
+//! Introspection support for [`Value`] and [`Values`]
+
 use std::{collections::HashMap, sync::LazyLock};
 #[cfg(test)]
 mod tests;
@@ -126,7 +126,7 @@ impl<'a> IntrospectValue<'a> for String
 	}
 	fn into_tag(self) -> Value { Value::String(self) }
 	fn default_view() -> Self::View { "" }
-	fn default_value() -> Self { String::new() }
+	fn default_value() -> Self { Self::new() }
 }
 
 impl<'a, T: Introspect<'a>> IntrospectValue<'a> for T
@@ -210,7 +210,7 @@ impl<'a, T: IntrospectValue<'a>> IntrospectValue<'a> for Vec<T>
 	}
 	fn into_tag(self) -> Value { Value::List(self.into_iter().map(|value| value.into_tag()).collect()) }
 	fn default_view() -> Self::View { Vec::new() }
-	fn default_value() -> Self { Vec::new() }
+	fn default_value() -> Self { Self::new() }
 }
 
 impl<'a> IntrospectValue<'a> for Values
@@ -253,10 +253,10 @@ impl<'a> IntrospectValue<'a> for Values
 	fn into_tag(self) -> Value { Value::Object(self) }
 	fn default_view() -> Self::View
 	{
-		static DEFAULT_TAGS: LazyLock<Values> = LazyLock::new(|| Values::default());
+		static DEFAULT_TAGS: LazyLock<Values> = LazyLock::new(Values::default);
 		&DEFAULT_TAGS
 	}
-	fn default_value() -> Self { Values::default() }
+	fn default_value() -> Self { Self::default() }
 }
 
 impl<'a, K, V> Introspect<'a> for HashMap<K, V>
@@ -524,7 +524,7 @@ impl Values
 	}
 
 	/// Returns a list of mutable values of type `T` for the given keys, if they exist and can be converted to `T`
-	pub fn get_many_mut<'a, const N: usize>(&mut self, keys: [&'a Key; N]) -> [Option<&mut Value>; N]
+	pub fn get_many_mut<const N: usize>(&mut self, keys: [&Key; N]) -> [Option<&mut Value>; N]
 	{
 		self.0.get_disjoint_mut(keys)
 	}
@@ -672,10 +672,10 @@ pub struct UnitEnum<'a, T>(&'a mut Value, std::marker::PhantomData<T>);
 
 impl<'a, T> UnitEnum<'a, T>
 where
-	T: IntrospectValue<'a, View = T, ViewMut = UnitEnum<'a, T>>,
+	T: IntrospectValue<'a, View = T, ViewMut = Self>,
 {
 	/// Creates a new `UnitEnum` wrapper for the given tag
-	pub fn new(tag: &'a mut Value) -> Self { Self(tag, std::marker::PhantomData) }
+	pub const fn new(tag: &'a mut Value) -> Self { Self(tag, std::marker::PhantomData) }
 
 	/// Gets the value of the unit enum from the tag, returning an error if the tag is not of the correct type
 	pub fn get(&'a self) -> Result<T, ValueViewError> { T::view(self.0) }
@@ -686,7 +686,7 @@ where
 
 impl<'a, T> IntrospectValue<'a> for UnitEnum<'a, T>
 where
-	T: IntrospectValue<'a, View = T, ViewMut = UnitEnum<'a, T>>,
+	T: IntrospectValue<'a, View = T, ViewMut = Self>,
 {
 	type View = T;
 	type ViewMut = Self;

@@ -1,3 +1,5 @@
+#![allow(clippy::option_if_let_else, reason = "darling (lol)")]
+
 use darling::{FromDeriveInput, FromVariant, ast};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};

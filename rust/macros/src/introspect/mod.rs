@@ -1,4 +1,4 @@
-#![allow(clippy::option_if_let_else)]
+#![allow(clippy::option_if_let_else, reason = "darling (lol)")]
 use crate::minted_path;
 use darling::{
 	FromDeriveInput, FromField, FromMeta, FromVariant,
@@ -140,6 +140,7 @@ pub fn derive(input: &syn::DeriveInput) -> Result<TokenStream2>
 		Data::Enum(variants) => expand_enum_schema(&input, variants),
 	}
 }
+
 fn expand_struct_schema(input: &SchemaInput, fields: &Fields<FieldInput>) -> Result<TokenStream2>
 {
 	let lifetime = Lifetime::new(&format!("'{VIEW_LIFETIME}"), Span::call_site());
@@ -170,6 +171,7 @@ fn expand_struct_schema(input: &SchemaInput, fields: &Fields<FieldInput>) -> Res
 	}
 	generate_schema(input, &included, &skipped, &lifetime)
 }
+
 fn option_inner(ty: &Type) -> Option<&Type>
 {
 	let path = match ty
@@ -197,6 +199,7 @@ fn option_inner(ty: &Type) -> Option<&Type>
 		_ => None,
 	}
 }
+
 fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize>) -> Result<Field>
 {
 	if field.ident.is_none() && index.is_none()
@@ -213,12 +216,11 @@ fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize
 	let ident = field
 		.ident
 		.clone()
-		.unwrap_or_else(|| format_ident!("p{}", index.unwrap()));
+		.unwrap_or_else(|| format_ident!("p{}", index.expect("tuple struct field must have an index")));
 	let vis = field.vis.clone();
 	let key = field.args.key.clone().unwrap_or_else(|| ident.to_string());
-	let (ty, optional) = option_inner(&field.ty)
-		.map(|inner| (inner.clone(), true))
-		.unwrap_or_else(|| (field.ty.clone(), false));
+	let (ty, optional) =
+		option_inner(&field.ty).map_or_else(|| (field.ty.clone(), false), |inner| (inner.clone(), true));
 	if optional && option_inner(&ty).is_some()
 	{
 		return Err(Error::new_spanned(&field.ty, "nested Option types are not supported"));
@@ -236,6 +238,7 @@ fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize
 		optional,
 	})
 }
+
 fn normalize_enum_variants(variants: &[VariantInput], schema_default: bool) -> Result<Vec<EnumVariant>>
 {
 	let mut result = Vec::with_capacity(variants.len());
@@ -301,6 +304,7 @@ fn normalize_enum_variants(variants: &[VariantInput], schema_default: bool) -> R
 	}
 	Ok(result)
 }
+
 fn view_type_generics(generics: &Generics, lifetime: &Lifetime) -> TokenStream2
 {
 	let mut params = Vec::new();
@@ -335,6 +339,7 @@ fn view_type_generics(generics: &Generics, lifetime: &Lifetime) -> TokenStream2
 		quote!(<#(#params),*>)
 	}
 }
+
 fn generate_view_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> impl Iterator<Item = TokenStream2>
 {
 	let minted = minted_path();
@@ -437,6 +442,7 @@ fn generate_view_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> 
 		}
 	})
 }
+
 fn generate_view_mut_fields(fields: &[Field], lifetime: &Lifetime) -> impl Iterator<Item = TokenStream2>
 {
 	let minted = minted_path();
@@ -468,6 +474,7 @@ fn generate_view_mut_fields(fields: &[Field], lifetime: &Lifetime) -> impl Itera
 		}
 	})
 }
+
 fn generate_view_mut_values(fields: &[Field]) -> TokenStream2
 {
 	let minted = minted_path();
@@ -487,6 +494,7 @@ fn generate_view_mut_values(fields: &[Field]) -> TokenStream2
 		]);
 	}
 }
+
 fn generate_default_insertions(fields: &[Field]) -> impl Iterator<Item = TokenStream2>
 {
 	let minted = minted_path();
@@ -550,6 +558,7 @@ fn generate_default_insertions(fields: &[Field]) -> impl Iterator<Item = TokenSt
 		})
 	})
 }
+
 fn literal_default_owned(name: &Ident, field: &Field, lifetime: &Lifetime) -> TokenStream2
 {
 	let minted = minted_path();
@@ -561,6 +570,7 @@ fn literal_default_owned(name: &Ident, field: &Field, lifetime: &Lifetime) -> To
 		)?
 	}
 }
+
 fn generate_from_tags_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> Result<TokenStream2>
 {
 	let minted = minted_path();
@@ -691,6 +701,7 @@ fn generate_from_tags_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime
 		#(#generated),*
 	})
 }
+
 fn generate_into_tags_fields(fields: &[Field]) -> impl Iterator<Item = TokenStream2>
 {
 	let minted = minted_path();
@@ -722,6 +733,7 @@ fn generate_into_tags_fields(fields: &[Field]) -> impl Iterator<Item = TokenStre
 		}
 	})
 }
+
 fn is_string(ty: &Type) -> bool
 {
 	let path = match ty
@@ -739,6 +751,7 @@ fn is_string(ty: &Type) -> bool
 		.map(|segment| &segment.ident)
 		.is_some_and(|ident| ident == "String")
 }
+
 fn literal_default_static(name: &Ident, field: &Field, expr: &Expr) -> TokenStream2
 {
 	let ident = &field.ident;
@@ -755,7 +768,7 @@ fn literal_default_static(name: &Ident, field: &Field, expr: &Expr) -> TokenStre
 	};
 
 	quote! {
-		#[allow(nonstandard_style)]
+		#[allow(nonstandard_style, reason = "generated code")]
 		static #default_ident: ::std::sync::LazyLock<#minted::Value> =
 			::std::sync::LazyLock::new(|| {
 				<#ty as #minted::introspect::IntrospectValue<'static>>::into_tag(
@@ -764,6 +777,7 @@ fn literal_default_static(name: &Ident, field: &Field, expr: &Expr) -> TokenStre
 			});
 	}
 }
+
 fn literal_default_view(field: &Field, lifetime: &Lifetime, name: &Ident) -> TokenStream2
 {
 	let default_ident = format_ident!("__TAG_DEFAULT_{}_{}", name, field.ident);
@@ -775,6 +789,7 @@ fn literal_default_view(field: &Field, lifetime: &Lifetime, name: &Ident) -> Tok
 		)?
 	}
 }
+
 fn generate_schema(
 	input: &SchemaInput,
 	fields: &[Field],
@@ -868,9 +883,11 @@ fn generate_schema(
 		}
 	})
 }
+
 /* ------------------------------------------------------------------------- */
-/* Enum generation                                                          */
+/* Enum generation                                                           */
 /* ------------------------------------------------------------------------- */
+
 fn expand_enum_schema(input: &SchemaInput, variants: &[VariantInput]) -> Result<TokenStream2>
 {
 	let variants = normalize_enum_variants(variants, input.default)?;
@@ -898,6 +915,7 @@ fn expand_enum_schema(input: &SchemaInput, variants: &[VariantInput]) -> Result<
 		generate_named_enum_schema(input, &variants, all_tupl)
 	}
 }
+
 fn generate_unit_enum_schema(input: &SchemaInput, variants: &[EnumVariant]) -> Result<TokenStream2>
 {
 	let name = &input.ident;
@@ -988,6 +1006,7 @@ fn generate_unit_enum_schema(input: &SchemaInput, variants: &[EnumVariant]) -> R
 		}
 	})
 }
+
 fn generate_named_enum_schema(input: &SchemaInput, variants: &[EnumVariant], is_tupl: bool) -> Result<TokenStream2>
 {
 	let lifetime = Lifetime::new(&format!("'{VIEW_LIFETIME}"), Span::call_site());
@@ -1119,6 +1138,7 @@ fn generate_named_enum_schema(input: &SchemaInput, variants: &[EnumVariant], is_
 		}
 	})
 }
+
 fn generate_enum_view_arms(
 	variants: &[EnumVariant],
 	view_name: &Ident,
@@ -1131,9 +1151,9 @@ fn generate_enum_view_arms(
 		.map(|variant| {
 			let key = LitStr::new(&variant.key, variant.ident.span());
 			let fields = generate_enum_view_field_initializers(&variant.fields, lifetime, is_tupl);
+			let ident = &variant.ident;
 			if is_tupl
 			{
-				let ident = &variant.ident;
 				Ok(quote! {
 					#key => {
 						Ok(#view_name::#ident (
@@ -1144,7 +1164,6 @@ fn generate_enum_view_arms(
 			}
 			else
 			{
-				let ident = &variant.ident;
 				let fields = generate_enum_view_field_initializers(&variant.fields, lifetime, is_tupl);
 				Ok(quote! {
 					#key => {
@@ -1157,6 +1176,7 @@ fn generate_enum_view_arms(
 		})
 		.collect()
 }
+
 fn generate_enum_view_mut_arms(
 	variants: &[EnumVariant],
 	view_mut_name: &Ident,
@@ -1217,6 +1237,7 @@ fn generate_enum_view_mut_arms(
 		})
 		.collect()
 }
+
 fn generate_enum_from_tag_arms(
 	variants: &[EnumVariant],
 	lifetime: &Lifetime,
@@ -1299,6 +1320,7 @@ fn generate_enum_from_tag_arms(
 		})
 		.collect()
 }
+
 fn generate_enum_into_tag_arms(variants: &[EnumVariant], is_tupl: bool) -> Result<Vec<TokenStream2>>
 {
 	let minted = minted_path();
@@ -1389,6 +1411,7 @@ fn generate_enum_into_tag_arms(variants: &[EnumVariant], is_tupl: bool) -> Resul
 		})
 		.collect()
 }
+
 fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, is_tupl: bool) -> Vec<TokenStream2>
 {
 	let minted = minted_path();
@@ -1438,6 +1461,7 @@ fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, 
 		})
 		.collect()
 }
+
 fn generate_enum_view_mut_field_initializers(fields: &[Field], lifetime: &Lifetime, is_tupl: bool)
 -> Vec<TokenStream2>
 {

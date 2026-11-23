@@ -1,18 +1,18 @@
-use std::collections::{HashMap, hash_map};
+#![allow(clippy::useless_conversion, reason = "used in features")]
 
-use std::convert::TryFrom;
-
-use std::fmt;
+use std::{
+	collections::{HashMap, hash_map},
+	convert::TryFrom,
+	fmt,
+};
 
 use serde::de::{
 	self, DeserializeOwned, DeserializeSeed, EnumAccess, Error as _, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
 
-use serde::{Deserialize, forward_to_deserialize_any};
-
 use super::{Key, Value};
-
 use crate::error::{Error, ErrorKind, PathSegment};
+use serde::{Deserialize, forward_to_deserialize_any};
 
 fn wrong_type(expected: &'static str, found: &Value) -> Error
 {
@@ -72,16 +72,14 @@ where
 			{
 				let hash = crate::utils::hash_field(field);
 
-				if let Some(previous) = lookup.insert(hash, field)
+				if let Some(previous) = lookup.insert(hash, field) &&
+					previous != field
 				{
-					if previous != field
-					{
-						return Err(Error::new(ErrorKind::FieldHashCollision {
-							hash,
-							first: previous,
-							second: field,
-						}));
-					}
+					return Err(Error::new(ErrorKind::FieldHashCollision {
+						hash,
+						first: previous,
+						second: field,
+					}));
 				}
 			}
 
@@ -174,16 +172,16 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Null => visitor.visit_unit(),
-			Value::Bool(value) => visitor.visit_bool(value),
-			Value::Int(value) => visitor.visit_i64(value),
-			Value::Uint(value) => visitor.visit_u64(value),
-			Value::Float32(value) => visitor.visit_f32(value),
-			Value::Float64(value) => visitor.visit_f64(value),
-			Value::String(value) => visitor.visit_string(value),
-			Value::Bytes(value) => visitor.visit_byte_buf(value),
-			Value::List(items) => with_list(items, visitor),
-			Value::Object(entries) => with_object(entries.into(), None, visitor),
+			Self::Null => visitor.visit_unit(),
+			Self::Bool(value) => visitor.visit_bool(value),
+			Self::Int(value) => visitor.visit_i64(value),
+			Self::Uint(value) => visitor.visit_u64(value),
+			Self::Float32(value) => visitor.visit_f32(value),
+			Self::Float64(value) => visitor.visit_f64(value),
+			Self::String(value) => visitor.visit_string(value),
+			Self::Bytes(value) => visitor.visit_byte_buf(value),
+			Self::List(items) => with_list(items, visitor),
+			Self::Object(entries) => with_object(entries.into(), None, visitor),
 		}
 	}
 
@@ -211,8 +209,8 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Float32(value) => visitor.visit_f32(value),
-			Value::Float64(value) => visitor.visit_f32(value as f32),
+			Self::Float32(value) => visitor.visit_f32(value),
+			Self::Float64(value) => visitor.visit_f32(value as f32),
 			other => Err(wrong_type("floating-point number", &other)),
 		}
 	}
@@ -223,8 +221,8 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Float32(value) => visitor.visit_f64(f64::from(value)),
-			Value::Float64(value) => visitor.visit_f64(value),
+			Self::Float32(value) => visitor.visit_f64(f64::from(value)),
+			Self::Float64(value) => visitor.visit_f64(value),
 			other => Err(wrong_type("floating-point number", &other)),
 		}
 	}
@@ -235,7 +233,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::String(value) =>
+			Self::String(value) =>
 			{
 				let mut chars = value.chars();
 
@@ -259,7 +257,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Null => visitor.visit_none(),
+			Self::Null => visitor.visit_none(),
 			other => visitor.visit_some(other),
 		}
 	}
@@ -270,7 +268,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Null => visitor.visit_unit(),
+			Self::Null => visitor.visit_unit(),
 			other => Err(wrong_type("null/unit", &other)),
 		}
 	}
@@ -295,11 +293,11 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::List(items) => with_list(items, visitor),
+			Self::List(items) => with_list(items, visitor),
 
 			// This also lets an ordinary Vec<u8> read a Bytes value.
-			Value::Bytes(bytes) => with_list(
-				bytes.into_iter().map(|byte| Value::Uint(u64::from(byte))).collect(),
+			Self::Bytes(bytes) => with_list(
+				bytes.into_iter().map(|byte| Self::Uint(u64::from(byte))).collect(),
 				visitor,
 			),
 
@@ -313,7 +311,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match &self
 		{
-			Value::List(items) if items.len() != len =>
+			Self::List(items) if items.len() != len =>
 			{
 				return Err(Error::new(ErrorKind::InvalidTupleLength {
 					expected: len,
@@ -341,7 +339,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Object(entries) => with_object(entries.into(), None, visitor),
+			Self::Object(entries) => with_object(entries.into(), None, visitor),
 
 			other => Err(wrong_type("object", &other)),
 		}
@@ -358,7 +356,7 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::Object(entries) => with_object(entries.into(), Some(fields), visitor),
+			Self::Object(entries) => with_object(entries.into(), Some(fields), visitor),
 
 			other => Err(wrong_type("object", &other)),
 		}
@@ -375,9 +373,8 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		let (variant, contents) = match self
 		{
-			Value::String(variant) => (variant, None),
-
-			Value::Object(mut entries) if entries.len() == 1 =>
+			Self::String(variant) => (variant, None),
+			Self::Object(mut entries) if entries.len() == 1 =>
 			{
 				let (key, value) = entries.drain().next().expect("length checked");
 
@@ -406,10 +403,8 @@ impl<'de> de::Deserializer<'de> for Value
 	{
 		match self
 		{
-			Value::String(value) => visitor.visit_string(value),
-
-			Value::Uint(value) => visitor.visit_u64(value),
-
+			Self::String(value) => visitor.visit_string(value),
+			Self::Uint(value) => visitor.visit_u64(value),
 			other => Err(wrong_type("identifier", &other)),
 		}
 	}
@@ -543,20 +538,15 @@ impl<'de> MapAccess<'de> for &mut ObjectAccess
 			(Key::String(name), None) => PathSegment::Key(name.clone()),
 			(Key::Hashed(id), None) => PathSegment::Id(*id),
 		};
+
 		self.pending_path = Some(path.clone());
 
 		let key = match (key, &self.hashed_fields)
 		{
-			(Key::Hashed(id), Some(fields)) => match fields.get(&id)
-			{
-				Some(name) => Key::String((*name).to_owned()),
-
-				// Preserve Serde's unknown-field / deny_unknown_fields behavior.
-
-				// The marker cannot match a normal Rust field identifier.
-				None => Key::String(format!("\0mint_unknown_hash_{id:016x}")),
-			},
-
+			(Key::Hashed(id), Some(fields)) => fields.get(&id).map_or_else(
+				|| Key::String(format!("\0mint_unknown_hash_{id:016x}")),
+				|name| Key::String((*name).to_owned()),
+			),
 			(key, _) => key,
 		};
 
@@ -581,7 +571,6 @@ impl<'de> MapAccess<'de> for &mut ObjectAccess
 }
 
 /// Deserializer for map keys; IDs remain integers in ordinary maps.
-
 struct KeyDeserializer(Key);
 
 impl<'de> de::Deserializer<'de> for KeyDeserializer
@@ -951,12 +940,10 @@ impl<'de> Deserialize<'de> for Value
 }
 
 #[cfg(test)]
-
 mod tests
 {
 
 	use super::*;
-
 	use serde::{Deserialize, Serialize};
 
 	#[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -986,7 +973,6 @@ mod tests
 	}
 
 	#[test]
-
 	fn named_round_trip()
 	{
 		let source = Nested {
@@ -1002,7 +988,6 @@ mod tests
 	}
 
 	#[test]
-
 	fn hashed_fields_read_by_name()
 	{
 		let source = Value::Object(
@@ -1028,20 +1013,15 @@ mod tests
 	}
 
 	#[test]
-
 	fn numeric_map_keys_stay_numeric()
 	{
 		let source = HashMap::from([(123_u32, "hello".to_owned())]);
-
 		let value = super::super::ser::to_value_named(&source).unwrap();
-
 		let decoded: HashMap<u32, String> = from_value(value).unwrap();
-
 		assert_eq!(decoded, source);
 	}
 
 	#[test]
-
 	fn enum_round_trip()
 	{
 		let cases = [
@@ -1060,15 +1040,12 @@ mod tests
 		for source in cases
 		{
 			let value = super::super::ser::to_value_named(&source).unwrap();
-
 			let decoded: Example = from_value(value).unwrap();
-
 			assert_eq!(decoded, source);
 		}
 	}
 
 	#[test]
-
 	fn raw_value_round_trip()
 	{
 		let source = Value::Object(
@@ -1080,16 +1057,13 @@ mod tests
 		);
 
 		let decoded: Value = from_value(source.clone()).unwrap();
-
 		assert_eq!(decoded, source);
 	}
 
 	#[test]
-
 	fn rejects_numeric_overflow()
 	{
 		let result: Result<i8, _> = from_value(Value::Uint(1000));
-
 		assert!(result.is_err());
 	}
 }
@@ -1097,14 +1071,15 @@ mod tests
 #[cfg(test)]
 mod context_tests
 {
-	use super::*;
 
+	use super::*;
 	#[allow(unused)]
 	#[derive(serde::Deserialize, Debug)]
 	struct Root
 	{
 		rows: Vec<Item>,
 	}
+
 	#[allow(unused)]
 	#[derive(serde::Deserialize, Debug)]
 	struct Item
@@ -1186,7 +1161,9 @@ mod structured_error_tests
 		{
 			Value(u32),
 		}
+
 		let err = from_value::<Example>(Value::String("Value".into())).unwrap_err();
+
 		assert!(matches!(
 			err.kind,
 			ErrorKind::MissingEnumPayload {

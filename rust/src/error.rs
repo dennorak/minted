@@ -186,7 +186,7 @@ impl Error
 	pub fn custom(message: impl fmt::Display) -> Self { Self::new(ErrorKind::Message(message.to_string())) }
 
 	/// Attach the position at which an operation started (or was detected).
-	pub fn at_offset(mut self, offset: u64) -> Self
+	pub const fn at_offset(mut self, offset: u64) -> Self
 	{
 		if self.context.offset.is_none()
 		{
@@ -293,12 +293,12 @@ impl From<str::Utf8Error> for Error
 
 impl serde::ser::Error for Error
 {
-	fn custom<T: fmt::Display>(message: T) -> Self { Error::custom(message) }
+	fn custom<T: fmt::Display>(message: T) -> Self { Self::custom(message) }
 }
 
 impl serde::de::Error for Error
 {
-	fn custom<T: fmt::Display>(message: T) -> Self { Error::custom(message) }
+	fn custom<T: fmt::Display>(message: T) -> Self { Self::custom(message) }
 }
 
 #[cfg(test)]
@@ -323,6 +323,7 @@ mod tests
 			.at_index(3)
 			.at_field("inventory")
 			.at_field("player");
+
 		assert_eq!(
 			error.to_string(),
 			"unknown value type 0xFE at byte 0x1A4 (path: $.player.inventory[3])"

@@ -71,7 +71,7 @@ async fn main()
 			}
 			_ =>
 			{
-				eprintln!("Unknown argument: {}", arg);
+				eprintln!("Unknown argument: {arg}");
 				std::process::exit(1);
 			}
 		}
@@ -80,7 +80,7 @@ async fn main()
 	{
 		eprintln!("Usage: {} [tcp|memory]", std::env::args().next().unwrap());
 		std::process::exit(1);
-	};
+	}
 }
 
 async fn handle_with_left_right<L, R>(left: L, right: R)
@@ -98,24 +98,24 @@ where
 
 	// Call the math method from the left peer.
 	let result = left.add(2, 3).await.expect("RPC call failed");
-	println!("2 + 3 = {}", result);
+	println!("2 + 3 = {result}");
 
 	let result = left
 		.other(OtherMathRequestKind::Multiply, 4, 5)
 		.await
 		.expect("RPC call failed");
-	println!("4 * 5 = {}", result);
+	println!("4 * 5 = {result}");
 
 	let result = left.other(OtherMathRequestKind::Divide, 10, 0).await;
 	match result
 	{
-		Ok(value) => println!("10 / 0 = {}", value),
-		Err(e) => println!("(should) Error: {}", e),
+		Ok(value) => println!("10 / 0 = {value}"),
+		Err(e) => println!("(should) Error: {e}"),
 	}
 
 	let result = left
 		.other(OtherMathRequestKind::Divide, 10, 2)
 		.await
 		.expect("RPC call failed");
-	println!("10 / 2 = {}", result);
+	println!("10 / 2 = {result}");
 }

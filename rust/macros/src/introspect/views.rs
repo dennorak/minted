@@ -27,8 +27,8 @@ pub fn generate_views(input: &SchemaInput, lifetime: &Lifetime, view_input: View
 	let generics = &input.generics;
 	let view_name = format_ident!("{name}View");
 	let view_mut_name = format_ident!("{name}ViewMut");
-
 	let mut view_generics = generics.clone();
+
 	view_generics
 		.params
 		.insert(0, syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
@@ -68,9 +68,8 @@ pub fn generate_views(input: &SchemaInput, lifetime: &Lifetime, view_input: View
 		}
 		ViewInput::Enum { variants, is_tupl } =>
 		{
-			let immutable_variants = generate_enum_view_variants(variants, &lifetime, false, is_tupl)?;
-
-			let mutable_variants = generate_enum_view_variants(variants, &lifetime, true, is_tupl)?;
+			let immutable_variants = generate_enum_view_variants(variants, lifetime, false, is_tupl)?;
+			let mutable_variants = generate_enum_view_variants(variants, lifetime, true, is_tupl)?;
 
 			(quote! { enum }, mutable_variants, immutable_variants)
 		}

@@ -3,30 +3,51 @@ resolver = "3"
 members = [".", "macros"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dennorak/minted"
 
 [package]
 name = "minted"
 version.workspace = true
 edition.workspace = true
-
+license.workspace = true
+repository.workspace = true
+description = """
+A Rust library for creating and working with the MINT format.
+Provides serialization and deserialization of MINT data structures,
+as well as utilities for working with MINT data in Rust applications.
+"""
 [dependencies]
 # general
 serde = { version = "1.0.229", features = ["derive"] }
-minted-macros = { path = "./macros", version = "0.1.0", registry = "rocks" }
+minted-macros = { path = "./macros", version = "^0.0" }
 thiserror = "2.0.21"
 paste = "1.0.15"
 # rpc
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "io-util", "sync", "time"], optional = true }
 async-trait = { version = "0.1.92", optional = true }
-reqwest = { version = "0.13.5", optional = true }
+tracing = { version = "0.1.44", optional = true }
 
 [features]
 default = []
 introspect = ["minted-macros/introspect"]
-rpc = ["minted-macros/rpc", "dep:tokio", "dep:async-trait"]
+rpc = ["minted-macros/rpc", "dep:tokio", "dep:async-trait", "dep:tracing"]
 rpc-tcp = ["rpc", "tokio/net"]
 
 [dev-dependencies]
 serde_bytes = "0.11.19"
+
+[[example]]
+name = "introspect_basic"
+required-features = ["introspect"]
+
+[[example]]
+name = "introspect_advanced"
+required-features = ["introspect"]
+
+
+[[example]]
+name = "rpc_math"
+required-features = ["rpc"]

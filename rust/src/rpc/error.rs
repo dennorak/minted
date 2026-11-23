@@ -326,7 +326,7 @@ mod tests
 	{
 		let code = RpcErrorCode::from_wire(65_535).unwrap();
 		let error = RpcError::new(code, "custom error");
-		let decoded = RpcError::try_from(&error.clone().into_value()).unwrap();
+		let decoded = RpcError::try_from(&error.into_value()).unwrap();
 
 		assert_eq!(decoded.code.as_u32(), 65_535);
 	}

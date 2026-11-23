@@ -26,6 +26,8 @@ impl RpcPeer
 	{
 		let stream = TcpStream::connect(address).await?;
 		stream.set_nodelay(true)?;
+
+		tracing::info!(peer = stream.peer_addr()?.to_string(), "Connected");
 		Ok(Self::from_stream_with_config(stream, None, config))
 	}
 
@@ -48,6 +50,8 @@ impl RpcPeer
 	{
 		let stream = TcpStream::connect(address).await?;
 		stream.set_nodelay(true)?;
+
+		tracing::info!(peer = stream.peer_addr()?.to_string(), "Connected");
 		Ok(Self::from_stream_with_config(stream, Some(dispatcher), config))
 	}
 }

@@ -10,10 +10,6 @@
 //! This generates a `GetPlayerRpcHandler`, `register_get_player_rpc`,
 //! `get_player_client`, and `get_player_context_client`, alongside the original
 //! function. The generated handlers implement the existing `RpcHandler<S>`.
-//!
-//! No custom `RpcValue` trait or runtime conversion module is required:
-//! ordinary types use `minted::to_value_named` / `minted::from_value`, while
-//! the literal types `Value`, `Values`, and `()` use direct conversions.
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -27,7 +23,6 @@ use syn::{
 use crate::minted_path;
 
 #[derive(Default)]
-
 struct Options
 {
 	client:       bool,
@@ -72,7 +67,6 @@ impl Options
 	fn parse(attrs: TokenStream2) -> syn::Result<Self>
 	{
 		let metas = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attrs)?;
-
 		let mut options = Self::default();
 		let mut aliases_defined = false;
 
@@ -86,7 +80,6 @@ impl Options
 					{
 						return Err(syn::Error::new_spanned(path, "duplicate `server`"));
 					}
-
 					options.server = true;
 				}
 
@@ -96,7 +89,6 @@ impl Options
 					{
 						return Err(syn::Error::new_spanned(path, "duplicate `client`"));
 					}
-
 					options.client = true;
 				}
 
@@ -106,28 +98,24 @@ impl Options
 					{
 						return Err(syn::Error::new_spanned(path, "duplicate `notification`"));
 					}
-
 					options.notification = true;
 				}
 
 				Meta::NameValue(nv) if nv.path.is_ident("name") =>
 				{
 					let name = string_literal(&nv.value, "name")?;
-
 					set_once(&mut options.name, name, "name")?;
 				}
 
 				Meta::NameValue(nv) if nv.path.is_ident("nested_under") || nv.path.is_ident("namespace") =>
 				{
 					let namespace = string_literal(&nv.value, "nested_under")?;
-
 					set_once(&mut options.nested_under, namespace, "nested_under/namespace")?;
 				}
 
 				Meta::NameValue(nv) if nv.path.is_ident("namespace_separator") =>
 				{
 					let separator = string_literal(&nv.value, "namespace_separator")?;
-
 					set_once(&mut options.separator, separator, "namespace_separator")?;
 				}
 
@@ -197,16 +185,13 @@ impl Options
 		if !options.server && !options.client
 		{
 			options.server = true;
-
 			options.client = true;
 		}
 
-		if !options.client && options.client_name.is_some()
+		if !options.client &&
+			let Some(name) = &options.client_name
 		{
-			return Err(syn::Error::new_spanned(
-				options.client_name.as_ref().unwrap(),
-				"`client_name` requires `client`",
-			));
+			return Err(syn::Error::new_spanned(name, "`client_name` requires `client`"));
 		}
 
 		if !options.server && !options.aliases.is_empty()
@@ -222,8 +207,7 @@ impl Options
 
 	fn wire_names(&self, function: &Ident) -> syn::Result<(LitStr, Vec<LitStr>)>
 	{
-		let separator = self.separator.as_ref().map(LitStr::value).unwrap_or_else(|| ".".into());
-
+		let separator = self.separator.as_ref().map_or_else(|| ".".into(), LitStr::value);
 		if separator.is_empty()
 		{
 			return Err(syn::Error::new(
@@ -232,19 +216,16 @@ impl Options
 			));
 		}
 
-		let leaf = self
-			.name
-			.as_ref()
-			.map(LitStr::value)
-			.unwrap_or_else(|| function.to_string().trim_start_matches("r#").to_owned());
-
+		let leaf = self.name.as_ref().map_or_else(
+			|| function.to_string().trim_start_matches("r#").to_owned(),
+			LitStr::value,
+		);
 		if leaf.is_empty()
 		{
 			return Err(syn::Error::new_spanned(function, "RPC method name cannot be empty"));
 		}
 
-		let namespace = self.nested_under.as_ref().map(LitStr::value).unwrap_or_default();
-
+		let namespace = self.nested_under.as_ref().map_or_default(LitStr::value);
 		let namespace = namespace
 			.trim_start_matches(separator.as_str())
 			.trim_end_matches(separator.as_str());
@@ -261,11 +242,9 @@ impl Options
 		};
 
 		let name = LitStr::new(&qualify(&leaf), Span::call_site());
-
 		let mut names = HashSet::from([name.value()]);
 
 		let mut aliases = Vec::new();
-
 		for alias in &self.aliases
 		{
 			if alias.value().is_empty()
@@ -274,7 +253,6 @@ impl Options
 			}
 
 			let full = qualify(&alias.value());
-
 			if !names.insert(full.clone())
 			{
 				return Err(syn::Error::new_spanned(alias, "duplicate RPC name or alias"));
@@ -376,7 +354,7 @@ fn result_type(return_type: &ReturnType) -> syn::Result<Type>
 
 		PathArguments::AngleBracketed(arguments) if arguments.args.len() == 1 =>
 		{
-			if let GenericArgument::Type(ty) = arguments.args.first().unwrap()
+			if let GenericArgument::Type(ty) = arguments.args.first().expect("arguments.len() == 1")
 			{
 				Ok(ty.clone())
 			}
@@ -443,7 +421,6 @@ fn analyze(function: &ItemFn, options: &Options) -> syn::Result<Analyzed>
 		};
 
 		let name = require_ident(&typed.pat)?;
-
 		let ty = (*typed.ty).clone();
 
 		if name == "ctx" || name == "context"
@@ -465,7 +442,6 @@ fn analyze(function: &ItemFn, options: &Options) -> syn::Result<Analyzed>
 			}
 
 			injected.push(Injected::Context);
-
 			seen_context = true;
 		}
 		else if name == "state"
@@ -586,26 +562,20 @@ fn title_case(ident: &Ident) -> String
 	for segment in ident.to_string().trim_start_matches("r#").split('_')
 	{
 		let mut chars = segment.chars();
-
 		if let Some(first) = chars.next()
 		{
 			result.extend(first.to_uppercase());
-
 			result.extend(chars);
 		}
 	}
-
 	result
 }
 
 /// Entry point for the `#[proc_macro_attribute] rpc` function in lib.rs.
-
 pub fn derive(attrs: TokenStream, item: TokenStream) -> syn::Result<TokenStream2>
 {
 	let options = Options::parse(attrs.into())?;
-
 	let function = syn::parse::<ItemFn>(item)?;
-
 	expand(function, options)
 }
 
@@ -756,19 +726,16 @@ fn expand(function: ItemFn, options: Options) -> syn::Result<TokenStream2>
 	};
 
 	// Stateless functions can be registered in any RpcRouter<S>.
-
-	let (impl_generics, handler_state, register_generics) = if let Some(state) = state
-	{
-		(quote!(), quote!(#state), quote!())
-	}
-	else
-	{
-		(
-			quote!(<__RpcState: Send + Sync + 'static>),
-			quote!(__RpcState),
-			quote!(<__RpcState: Send + Sync + 'static>),
-		)
-	};
+	let (impl_generics, handler_state, register_generics) = state.map_or_else(
+		|| {
+			(
+				quote!(<__RpcState: Send + Sync + 'static>),
+				quote!(__RpcState),
+				quote!(<__RpcState: Send + Sync + 'static>),
+			)
+		},
+		|state| (quote!(), quote!(#state), quote!()),
+	);
 
 	let server = if options.server
 	{
@@ -920,7 +887,6 @@ fn expand(function: ItemFn, options: Options) -> syn::Result<TokenStream2>
 		quote! {
 			/// Typed calls for this RPC method on either kind of connection handle.
 			/// Import with `use path::to::method::Client as _;`.
-			#[allow(async_fn_in_trait)]
 			pub trait Client {
 				async fn #original_name(&self, #(#names: #types),*) -> #client_return;
 			}
@@ -947,7 +913,7 @@ fn expand(function: ItemFn, options: Options) -> syn::Result<TokenStream2>
 	let api = quote! {
 		#(#cfg_attrs)*
 		#vis mod #original_name {
-			#[allow(unused_imports)]
+			#[allow(unused_imports, reason = "generated code")]
 			use super::*;
 
 			#register_api
@@ -960,7 +926,6 @@ fn expand(function: ItemFn, options: Options) -> syn::Result<TokenStream2>
 }
 
 #[cfg(test)]
-
 mod tests
 {
 
@@ -969,7 +934,6 @@ mod tests
 	fn expand_source(attributes: TokenStream2, source: TokenStream2) -> syn::Result<TokenStream2>
 	{
 		let options = Options::parse(attributes)?;
-
 		expand(syn::parse2::<ItemFn>(source)?, options)
 	}
 
@@ -1083,6 +1047,7 @@ mod tests
 				async fn ping(id: u64) -> RpcResult<()>
 				{
 					let _ = id;
+
 					Ok(())
 				}
 			),
@@ -1096,6 +1061,7 @@ mod tests
 	}
 
 	#[test]
+
 	fn companion_module_exposes_client_trait_and_registration()
 	{
 		let tokens = expand_source(
@@ -1105,12 +1071,15 @@ mod tests
 			),
 		)
 		.unwrap();
+
 		let source = tokens.to_string();
+
 		assert!(source.contains("mod ping"));
 		assert!(source.contains("trait Client"));
 		assert!(source.contains("super :: register_ping_rpc"));
 		assert!(source.contains("super :: ping_client"));
 		assert!(source.contains("super :: ping_context_client"));
+
 		syn::parse2::<syn::File>(tokens).unwrap();
 	}
 

@@ -480,6 +480,6 @@ fn can_use_blank_default_all()
 	let tags = Values::default();
 	let view = tags.get_view::<BlankDefaultAll>().unwrap();
 	assert_eq!(*view.value1, 0);
-	assert_eq!(*view.value2, false);
+	assert!(!(*view.value2));
 	assert_eq!(view.value3, "");
 }

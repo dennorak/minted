@@ -61,7 +61,7 @@ macro_rules! impl_from_tupl {
             impl<$([<T $n>]: Into<Value>),+>
                 From<($([<T $n>],)+)> for Value
             {
-                #[allow(non_snake_case)]
+                #[allow(non_snake_case, reason = "generated code")]
                 fn from(($([<T $n>],)+): ($([<T $n>],)+)) -> Self {
                     Value::List(vec![$([<T $n>].into(),)+])
                 }
@@ -102,25 +102,25 @@ impl std::fmt::Display for Key
 	{
 		match self
 		{
-			Key::String(s) => write!(f, "{}", s),
-			Key::Hashed(h) => write!(f, "{:#x}", h),
+			Self::String(s) => write!(f, "{}", s),
+			Self::Hashed(h) => write!(f, "{:#x}", h),
 		}
 	}
 }
 
 impl From<&str> for Key
 {
-	fn from(s: &str) -> Self { Key::String(s.to_string()) }
+	fn from(s: &str) -> Self { Self::String(s.to_string()) }
 }
 
 impl From<String> for Key
 {
-	fn from(s: String) -> Self { Key::String(s) }
+	fn from(s: String) -> Self { Self::String(s) }
 }
 
 impl From<u64> for Key
 {
-	fn from(h: u64) -> Self { Key::Hashed(h) }
+	fn from(h: u64) -> Self { Self::Hashed(h) }
 }
 
 impl TryFrom<Key> for String
@@ -194,6 +194,7 @@ pub enum Value
 	#[cfg_attr(feature = "introspect", mint(id = 0x07, exclude_from, exclude_schema))]
 	Bytes(Vec<u8>),
 	/// A heterogeneous list of values
+	#[allow(clippy::use_self, reason = "can't use self in enum variant")]
 	#[cfg_attr(not(feature = "introspect"), mint(id = 0x08, exclude_from))]
 	#[cfg_attr(feature = "introspect", mint(id = 0x08, exclude_from, exclude_schema))]
 	List(Vec<Value>),
@@ -209,8 +210,8 @@ impl std::fmt::Debug for Key
 	{
 		match self
 		{
-			Key::String(s) => write!(f, "{:?}", s),
-			Key::Hashed(h) => write!(f, "{:#x}", h),
+			Self::String(s) => write!(f, "{:?}", s),
+			Self::Hashed(h) => write!(f, "{:#x}", h),
 		}
 	}
 }
@@ -250,7 +251,7 @@ impl<'a> TryFrom<&'a Value> for &'a str
 	}
 }
 
-impl<'a, T: Into<Value>> From<Vec<T>> for Value
+impl<T: Into<Self>> From<Vec<T>> for Value
 {
 	fn from(value: Vec<T>) -> Self { Self::List(value.into_iter().map(|v| v.into()).collect()) }
 }
@@ -274,7 +275,7 @@ where
 	}
 }
 
-impl<T: Into<Value>> From<HashMap<String, T>> for Value
+impl<T: Into<Self>> From<HashMap<String, T>> for Value
 {
 	fn from(value: HashMap<String, T>) -> Self
 	{
@@ -284,14 +285,7 @@ impl<T: Into<Value>> From<HashMap<String, T>> for Value
 
 impl<T> From<Option<T>> for Value
 where
-	T: Into<Value>,
+	T: Into<Self>,
 {
-	fn from(opt: Option<T>) -> Self
-	{
-		match opt
-		{
-			Some(value) => value.into(),
-			None => Value::Null,
-		}
-	}
+	fn from(opt: Option<T>) -> Self { opt.map_or(Self::Null, |value| value.into()) }
 }

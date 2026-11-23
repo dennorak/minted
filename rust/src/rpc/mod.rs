@@ -10,10 +10,12 @@ mod codec;
 mod error;
 mod peer;
 mod router;
+
 pub use router::*;
 
 pub use async_trait::async_trait;
 pub use minted_macros::rpc;
+
 #[cfg(feature = "rpc-tcp")]
 pub mod tcp;
 

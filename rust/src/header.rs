@@ -19,7 +19,8 @@ const HEADER_SIZE: usize = 12;
 /// [4 bytes] payload length, little-endian
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Header
+
+pub struct Header
 {
 	/// Magic bytes identifying the format
 	magic: [u8; 4],
@@ -45,7 +46,7 @@ impl Default for Header
 
 impl Header
 {
-	pub(crate) fn new(length: u32) -> Self
+	pub(crate) const fn new(length: u32) -> Self
 	{
 		Self {
 			magic: MAGIC,

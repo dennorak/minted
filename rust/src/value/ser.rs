@@ -1,3 +1,5 @@
+#![allow(clippy::useless_conversion, reason = "used in features")]
+
 use std::collections::{HashMap, hash_map::Entry};
 
 use std::convert::TryFrom;
@@ -27,9 +29,8 @@ impl Serialize for Key
 	{
 		match self
 		{
-			Key::String(value) => serializer.serialize_str(value),
-
-			Key::Hashed(value) => serializer.serialize_u64(*value),
+			Self::String(value) => serializer.serialize_str(value),
+			Self::Hashed(value) => serializer.serialize_u64(*value),
 		}
 	}
 }
@@ -40,25 +41,16 @@ impl Serialize for Value
 	{
 		match self
 		{
-			Value::Null => serializer.serialize_unit(),
-
-			Value::Bool(value) => serializer.serialize_bool(*value),
-
-			Value::Uint(value) => serializer.serialize_u64(*value),
-
-			Value::Int(value) => serializer.serialize_i64(*value),
-
-			Value::Float32(value) => serializer.serialize_f32(*value),
-
-			Value::Float64(value) => serializer.serialize_f64(*value),
-
-			Value::String(value) => serializer.serialize_str(value),
-
-			Value::Bytes(value) => serializer.serialize_bytes(value),
-
-			Value::List(value) => value.serialize(serializer),
-
-			Value::Object(value) =>
+			Self::Null => serializer.serialize_unit(),
+			Self::Bool(value) => serializer.serialize_bool(*value),
+			Self::Uint(value) => serializer.serialize_u64(*value),
+			Self::Int(value) => serializer.serialize_i64(*value),
+			Self::Float32(value) => serializer.serialize_f32(*value),
+			Self::Float64(value) => serializer.serialize_f64(*value),
+			Self::String(value) => serializer.serialize_str(value),
+			Self::Bytes(value) => serializer.serialize_bytes(value),
+			Self::List(value) => value.serialize(serializer),
+			Self::Object(value) =>
 			{
 				let mut map = serializer.serialize_map(Some(value.len()))?;
 
@@ -74,17 +66,13 @@ impl Serialize for Value
 }
 
 /// Object keys are limited to strings and nonnegative integers.
-
 fn to_key<T: ?Sized + Serialize>(key: &T, key_mode: KeyMode) -> Result<Key, Error>
 {
 	match to_value(key, key_mode)?
 	{
 		Value::String(key) => Ok(Key::String(key)),
-
 		Value::Uint(key) => Ok(Key::Hashed(key)),
-
 		Value::Int(key) if key >= 0 => Ok(Key::Hashed(key as u64)),
-
 		_ => Err(Error::new(ErrorKind::InvalidMapKey)),
 	}
 }
@@ -104,7 +92,6 @@ fn tagged(variant: &str, contents: Value) -> Value
 }
 
 /// Serde serializer whose result is a `Value`.
-
 pub struct Serializer
 {
 	key_mode: KeyMode,
@@ -116,14 +103,12 @@ pub enum KeyMode
 {
 	#[default]
 	String,
-
 	Id,
 }
 
 impl Serializer
 {
-	pub fn new(key_mode: KeyMode) -> Self { Self { key_mode } }
-
+	pub const fn new(key_mode: KeyMode) -> Self { Self { key_mode } }
 	fn field_key(&self, name: &str) -> Key
 	{
 		match self.key_mode
@@ -138,33 +123,21 @@ impl Serializer
 impl ser::Serializer for Serializer
 {
 	type Ok = Value;
-
 	type Error = Error;
-
 	type SerializeSeq = VecSerializer;
-
 	type SerializeTuple = VecSerializer;
-
 	type SerializeTupleStruct = VecSerializer;
-
 	type SerializeTupleVariant = TupleVariantSerializer;
-
 	type SerializeMap = MapSerializer;
-
 	type SerializeStruct = MapSerializer;
-
 	type SerializeStructVariant = StructVariantSerializer;
 
 	fn serialize_bool(self, value: bool) -> Result<Value, Error> { Ok(Value::Bool(value)) }
 
 	fn serialize_i8(self, value: i8) -> Result<Value, Error> { Ok(Value::Int(value.into())) }
-
 	fn serialize_i16(self, value: i16) -> Result<Value, Error> { Ok(Value::Int(value.into())) }
-
 	fn serialize_i32(self, value: i32) -> Result<Value, Error> { Ok(Value::Int(value.into())) }
-
 	fn serialize_i64(self, value: i64) -> Result<Value, Error> { Ok(Value::Int(value)) }
-
 	fn serialize_i128(self, value: i128) -> Result<Value, Error>
 	{
 		i64::try_from(value)
@@ -173,13 +146,9 @@ impl ser::Serializer for Serializer
 	}
 
 	fn serialize_u8(self, value: u8) -> Result<Value, Error> { Ok(Value::Uint(value.into())) }
-
 	fn serialize_u16(self, value: u16) -> Result<Value, Error> { Ok(Value::Uint(value.into())) }
-
 	fn serialize_u32(self, value: u32) -> Result<Value, Error> { Ok(Value::Uint(value.into())) }
-
 	fn serialize_u64(self, value: u64) -> Result<Value, Error> { Ok(Value::Uint(value)) }
-
 	fn serialize_u128(self, value: u128) -> Result<Value, Error>
 	{
 		u64::try_from(value)
@@ -188,23 +157,18 @@ impl ser::Serializer for Serializer
 	}
 
 	fn serialize_f32(self, value: f32) -> Result<Value, Error> { Ok(Value::Float32(value)) }
-
 	fn serialize_f64(self, value: f64) -> Result<Value, Error> { Ok(Value::Float64(value)) }
 
 	fn serialize_char(self, value: char) -> Result<Value, Error> { Ok(Value::String(value.to_string())) }
-
 	fn serialize_str(self, value: &str) -> Result<Value, Error> { Ok(Value::String(value.to_owned())) }
 
 	fn serialize_bytes(self, value: &[u8]) -> Result<Value, Error> { Ok(Value::Bytes(value.to_vec())) }
 
 	fn serialize_none(self) -> Result<Value, Error> { Ok(Value::Null) }
-
 	fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<Value, Error> { to_value(value, self.key_mode) }
 
 	fn serialize_unit(self) -> Result<Value, Error> { Ok(Value::Null) }
-
 	fn serialize_unit_struct(self, _name: &'static str) -> Result<Value, Error> { Ok(Value::Null) }
-
 	fn serialize_unit_variant(
 		self,
 
@@ -222,7 +186,6 @@ impl ser::Serializer for Serializer
 	{
 		to_value(value, self.key_mode)
 	}
-
 	fn serialize_newtype_variant<T: ?Sized + Serialize>(
 		self,
 
@@ -249,7 +212,6 @@ impl ser::Serializer for Serializer
 			key_mode: self.key_mode,
 		})
 	}
-
 	fn serialize_tuple(self, len: usize) -> Result<VecSerializer, Error>
 	{
 		Ok(VecSerializer {
@@ -258,7 +220,6 @@ impl ser::Serializer for Serializer
 			key_mode: self.key_mode,
 		})
 	}
-
 	fn serialize_tuple_struct(self, _name: &'static str, len: usize) -> Result<VecSerializer, Error>
 	{
 		Ok(VecSerializer {
@@ -267,7 +228,6 @@ impl ser::Serializer for Serializer
 			key_mode: self.key_mode,
 		})
 	}
-
 	fn serialize_tuple_variant(
 		self,
 
@@ -310,7 +270,6 @@ impl ser::Serializer for Serializer
 			key_mode: self.key_mode,
 		})
 	}
-
 	fn serialize_struct_variant(
 		self,
 		_name: &'static str,
@@ -434,10 +393,8 @@ impl MapSerializer
 			Entry::Vacant(slot) =>
 			{
 				slot.insert(value);
-
 				Ok(())
 			}
-
 			Entry::Occupied(_) => Err(Error::new(ErrorKind::DuplicateKey)),
 		}
 	}
@@ -457,7 +414,6 @@ impl ser::SerializeMap for MapSerializer
 		}
 
 		self.pending_key = Some(to_key(key, self.key_mode)?);
-
 		Ok(())
 	}
 
@@ -491,7 +447,6 @@ impl ser::SerializeMap for MapSerializer
 		{
 			return Err(Error::custom("map ended with a missing value"));
 		}
-
 		Ok(Value::Object(self.entries.into()))
 	}
 }
@@ -499,7 +454,6 @@ impl ser::SerializeMap for MapSerializer
 impl ser::SerializeStruct for MapSerializer
 {
 	type Ok = Value;
-
 	type Error = Error;
 
 	fn serialize_field<T: ?Sized + Serialize>(&mut self, key: &'static str, value: &T) -> Result<(), Error>
@@ -514,17 +468,14 @@ impl ser::SerializeStruct for MapSerializer
 
 pub struct StructVariantSerializer
 {
-	variant: &'static str,
-
-	entries: HashMap<Key, Value>,
-
+	variant:  &'static str,
+	entries:  HashMap<Key, Value>,
 	key_mode: KeyMode,
 }
 
 impl ser::SerializeStructVariant for StructVariantSerializer
 {
 	type Ok = Value;
-
 	type Error = Error;
 
 	fn serialize_field<T: ?Sized + Serialize>(&mut self, key: &'static str, value: &T) -> Result<(), Error>
@@ -533,7 +484,6 @@ impl ser::SerializeStructVariant for StructVariantSerializer
 		let key = match self.key_mode
 		{
 			KeyMode::String => Key::String(key.to_owned()),
-
 			KeyMode::Id => Key::Hashed(crate::utils::hash_field(key)),
 		};
 
@@ -544,7 +494,6 @@ impl ser::SerializeStructVariant for StructVariantSerializer
 			Entry::Vacant(slot) =>
 			{
 				slot.insert(value);
-
 				Ok(())
 			}
 
@@ -556,6 +505,7 @@ impl ser::SerializeStructVariant for StructVariantSerializer
 
 	fn end(self) -> Result<Value, Error> { Ok(tagged(self.variant, Value::Object(self.entries.into()))) }
 }
+
 #[cfg(test)]
 mod context_tests
 {
@@ -582,13 +532,16 @@ mod context_tests
 		{
 			rows: Vec<HashMap<i32, bool>>,
 		}
+
 		let input = WithMap {
 			rows: vec![HashMap::from([(-1, true)])],
 		};
 		let err = to_value_hashed(&input).unwrap_err();
+
 		// The error comes from key serialization, so the enclosing collection
 		// indexes and struct name are added while unwinding.
 		assert!(matches!(err.kind, ErrorKind::InvalidMapKey));
+
 		assert_eq!(
 			err.context.path,
 			vec![
@@ -604,22 +557,27 @@ mod context_tests
 		let input = Outer {
 			rows: vec![Inner { count: 12 }],
 		};
+
 		let output = to_value_hashed(&input).unwrap();
+
 		let Value::Object(root) = output
 		else
 		{
 			panic!("expected object")
 		};
+
 		let Value::List(rows) = &root[&Key::Hashed(crate::utils::hash_field("rows"))]
 		else
 		{
 			panic!("expected list")
 		};
+
 		let Value::Object(inner) = &rows[0]
 		else
 		{
 			panic!("expected object")
 		};
+
 		assert_eq!(inner[&Key::Hashed(crate::utils::hash_field("count"))], Value::Int(12));
 	}
 }

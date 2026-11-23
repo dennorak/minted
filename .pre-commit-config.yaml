@@ -1,0 +1,57 @@
+default_install_hook_types: ["pre-push"]
+default_stages: ["pre-push"]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.50.3
+    hooks:
+      - id: typos
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo +nightly fmt --all --check --manifest-path rust/Cargo.toml
+        language: system
+        pass_filenames: false
+        files: \.rs$
+      - id: cargo-clippy-none
+        name: cargo clippy (no features)
+        entry: cargo clippy --all --manifest-path rust/Cargo.toml -- -D warnings
+        language: system
+        pass_filenames: false
+        files: \.rs$
+      - id: cargo-clippy-all
+        name: cargo clippy (all features)
+        entry: cargo clippy --all --all-features --manifest-path rust/Cargo.toml -- -D warnings
+        language: system
+        pass_filenames: false
+        files: \.rs$
+      - id: cargo-test-none
+        name: cargo test (no features)
+        entry: cargo test --all --manifest-path rust/Cargo.toml
+        language: system
+        pass_filenames: false
+        files: \.rs$
+      - id: cargo-test-all
+        name: cargo test (all features)
+        entry: cargo test --all --all-features --manifest-path rust/Cargo.toml
+        language: system
+        pass_filenames: false
+        files: \.rs$
+      - id: publish-dry-run
+        name: cargo publish (dry run)
+        entry: cargo publish --dry-run --workspace --manifest-path rust/Cargo.toml
+        language: system
+        pass_filenames: false
+        files: \.rs$

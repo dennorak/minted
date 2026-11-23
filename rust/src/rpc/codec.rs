@@ -183,6 +183,7 @@ pub async fn write_message<W: AsyncWrite + Unpin>(
 		size: usize::MAX,
 		max:  max_frame_bytes,
 	})?;
+
 	if length > max_frame_bytes || length > u32::MAX as usize
 	{
 		return Err(RpcProtocolError::FrameTooLarge {
@@ -196,6 +197,7 @@ pub async fn write_message<W: AsyncWrite + Unpin>(
 	writer.write_all(&[PROTOCOL_VERSION]).await?;
 	writer.write_all(&payload).await?;
 	writer.flush().await?;
+
 	Ok(())
 }
 
@@ -229,6 +231,7 @@ mod tests
 				params: Value::Bool(true),
 			},
 		];
+
 		for message in cases
 		{
 			assert_eq!(

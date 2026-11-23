@@ -304,6 +304,10 @@ impl RpcPeer
 
 	/// Issue a request. Responses may arrive in any order. Dropping this
 	/// future removes the pending entry but cannot undo a sent request.
+	#[allow(
+		clippy::significant_drop_tightening,
+		reason = "The semaphore permit must remain held for the lifetime of the pending RPC call"
+	)]
 	pub async fn call(&self, method: impl Into<String>, params: Value) -> RpcCallResult
 	{
 		if self.is_closed()

@@ -27,6 +27,11 @@ pub mod prelude
 
 const SPECIALCASE_LIST_KEY: u8 = 0xFF;
 
+extern crate self as minted;
+
+mod header;
+mod utils;
+
 mod value;
 pub use value::{
 	Key, Value, Values,
@@ -37,11 +42,9 @@ pub use value::{
 mod error;
 pub use error::{Error, Result};
 
-mod header;
-mod utils;
-
 mod de;
 pub use de::{from_bytes, from_reader};
+
 mod ser;
 pub use ser::{to_bytes_hashed, to_bytes_named, to_writer_hashed, to_writer_named};
 
@@ -65,11 +68,12 @@ mod tests
 		b: String,
 		c: Vec<u8>,
 		d: Option<bool>,
-		e: Vec<TestStruct>,
+		e: Vec<Self>,
 		f: HashMap<String, TestEnum>,
 	}
 
-	#[derive(Serialize, Deserialize, PartialEq, Debug)]
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+
 	pub enum TestEnum
 	{
 		Unit,

@@ -94,10 +94,11 @@ impl<S> RoutedDispatcher<S>
 	pub fn new(state: S, router: RpcRouter<S>) -> Self { Self::from_shared(Arc::new(state), Arc::new(router)) }
 
 	/// Create a new dispatcher with the given state and router, both wrapped in `Arc`.
-	pub fn from_shared(state: Arc<S>, router: Arc<RpcRouter<S>>) -> Self { Self { state, router } }
+	pub const fn from_shared(state: Arc<S>, router: Arc<RpcRouter<S>>) -> Self { Self { state, router } }
 }
 
 #[async_trait::async_trait]
+
 impl<S> RpcDispatcher for RoutedDispatcher<S>
 where
 	S: Send + Sync + 'static,

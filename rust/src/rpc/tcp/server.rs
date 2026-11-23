@@ -106,7 +106,8 @@ impl<S: Send + Sync + 'static> RpcServer<S>
 			Arc::clone(&self.state),
 			Arc::clone(&self.router),
 		));
-		RpcPeer::from_stream_with_shared_codec(stream, Some(dispatcher), self.config.peer)
+
+		RpcPeer::from_stream_with_config(stream, Some(dispatcher), self.config.peer)
 	}
 
 	/// Run a single connection until it closes. To make reverse calls,
@@ -168,8 +169,9 @@ impl<S: Send + Sync + 'static> RpcServer<S>
 		let on_connect = Arc::new(on_connect);
 		let slots = Arc::new(Semaphore::new(self.config.max_connections));
 		let mut connections = JoinSet::<()>::new();
-		tokio::pin!(shutdown);
 
+		tokio::pin!(shutdown);
+		tracing::info!(address = listener.local_addr()?.to_string(), "RPC server listening");
 		loop
 		{
 			// Acquire *before* accept, so at most max_connections are active.
@@ -184,15 +186,24 @@ impl<S: Send + Sync + 'static> RpcServer<S>
 				_ = &mut shutdown => { drop(permit); break; }
 				accepted = listener.accept() => accepted,
 			};
+
 			let (stream, _) = accepted?;
 			let _ = stream.set_nodelay(true);
 			let server = self.clone();
 			let on_connect = Arc::clone(&on_connect);
+
+			let peer_addr = stream
+				.peer_addr()
+				.map(|a| a.to_string())
+				.unwrap_or_else(|_| "<unknown>".to_string());
+
+			tracing::info!(peer_addr, "Accepted RPC connection");
 			connections.spawn(async move {
 				let _permit = permit;
 				let peer = server.attach_shared(stream);
 				let _close_on_exit = ClosePeerOnDrop(peer.clone());
 				let callback = on_connect(peer.clone());
+
 				tokio::pin!(callback);
 
 				// The callback may complete immediately or live for the
@@ -201,6 +212,7 @@ impl<S: Send + Sync + 'static> RpcServer<S>
 					_ = peer.wait_closed() => {},
 					_ = &mut callback => peer.wait_closed().await,
 				}
+
 				peer.close();
 			});
 
@@ -209,14 +221,16 @@ impl<S: Send + Sync + 'static> RpcServer<S>
 			{
 				if let Err(error) = finished
 				{
-					eprintln!("Minted RPC connection task failed: {error}");
+					tracing::error!(error = %error, peer_addr, "RPC connection task failed");
 				}
 			}
 		}
 
 		connections.abort_all();
+
 		while connections.join_next().await.is_some()
 		{}
+
 		Ok(())
 	}
 }

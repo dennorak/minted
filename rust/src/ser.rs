@@ -89,7 +89,7 @@ fn write_list<W: std::io::Write>(values: &[Value], buf: &mut W) -> Result<()>
 }
 
 /// writes an unsigned integer as a base-128 variable-length integer
-pub(super) fn write_varint<W: std::io::Write>(buf: &mut W, mut value: u64) -> Result<()>
+pub fn write_varint<W: std::io::Write>(buf: &mut W, mut value: u64) -> Result<()>
 {
 	while value >= 0x80
 	{

@@ -1,3 +1,5 @@
+#![allow(clippy::useless_conversion, reason = "used in features")]
+
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -43,12 +45,12 @@ fn read_u8<R: std::io::Read>(data: &mut R) -> Result<u8>
 /// reads a length-prefixed byte slice
 ///
 /// the length is encoded as an unsigned base-128 variable-length integer
-fn read_len_prefixed<'a, R: std::io::Read>(data: &mut R) -> Result<Vec<u8>>
+fn read_len_prefixed<R: std::io::Read>(data: &mut R) -> Result<Vec<u8>>
 {
 	let len = read_varint(data)?;
 	let len = usize::try_from(len).map_err(|_| Error::new(ErrorKind::LengthOverflow))?;
-
 	let mut buf = vec![0u8; len];
+
 	data.read_exact(&mut buf)
 		.map_err(|_| Error::new(ErrorKind::UnexpectedEof))?;
 	Ok(buf)
@@ -66,7 +68,7 @@ fn take<const N: usize, R: std::io::Read>(data: &mut R) -> Result<[u8; N]>
 const fn zigzag_decode(value: u64) -> i64 { ((value >> 1) as i64) ^ -((value & 1) as i64) }
 
 /// reads an unsigned base-128 variable-length integer
-pub(super) fn read_varint<R: std::io::Read>(data: &mut R) -> Result<u64>
+pub fn read_varint<R: std::io::Read>(data: &mut R) -> Result<u64>
 {
 	let mut value = 0u64;
 
@@ -165,7 +167,6 @@ impl Value
 			0x07 =>
 			{
 				let bytes = read_len_prefixed(reader)?;
-
 				Ok(Self::Bytes(bytes.to_vec()))
 			}
 			// list

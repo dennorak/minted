@@ -25,17 +25,18 @@ mod introspect;
 mod rpc;
 mod value;
 
-#[allow(unused)]
+#[allow(unused, reason = "used with features")]
 fn minted_path() -> TokenStream2
 {
-	match crate_name("minted").expect("couldn't find minted crate")
+	match crate_name("minted")
 	{
-		FoundCrate::Itself => quote::quote!(minted),
-		FoundCrate::Name(name) =>
+		Ok(FoundCrate::Itself) => quote::quote!(::minted),
+		Ok(FoundCrate::Name(name)) =>
 		{
 			let ident = Ident::new(&name, Span::call_site());
 			quote::quote!(::#ident)
 		}
+		Err(_) => quote::quote!(::minted),
 	}
 }
 
@@ -60,7 +61,6 @@ fn default_static_ident(ty: &Type) -> Ident
 pub fn derive_mint_value(input: TokenStream) -> TokenStream
 {
 	let input = parse_macro_input!(input as DeriveInput);
-
 	match value::derive(&input)
 	{
 		Ok(tokens) => tokens.into(),
@@ -74,7 +74,6 @@ pub fn derive_mint_value(input: TokenStream) -> TokenStream
 pub fn derive_mint_introspect(input: TokenStream) -> TokenStream
 {
 	let input = parse_macro_input!(input as DeriveInput);
-
 	match introspect::derive(&input)
 	{
 		Ok(tokens) => tokens.into(),

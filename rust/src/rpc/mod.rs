@@ -8,9 +8,7 @@ use crate::Value;
 
 mod codec;
 mod error;
-pub use error::*;
 mod peer;
-pub use peer::*;
 mod router;
 pub use router::*;
 
@@ -19,12 +17,8 @@ pub use minted_macros::rpc;
 #[cfg(feature = "rpc-tcp")]
 pub mod tcp;
 
-pub use error::{
-    RpcCallError, RpcCallResult, RpcError, RpcErrorCode, RpcProtocolError, RpcResult,
-};
-pub use peer::{
-    RpcContext, RpcDispatcher, RpcNotification, RpcPeer, RpcPeerConfig, RpcPeerEvent,
-};
+pub use error::{RpcCallError, RpcCallResult, RpcError, RpcErrorCode, RpcProtocolError, RpcResult};
+pub use peer::{RpcContext, RpcDispatcher, RpcNotification, RpcPeer, RpcPeerConfig, RpcPeerEvent};
 
 /// RPC envelopes are unchanged by bidirectionality. Both peers may send
 /// requests; response IDs are scoped to the sender's connection state.
@@ -48,7 +42,7 @@ pub enum RpcMessage {
         ///
         /// This is serialized as two fields: `result` for success and `error` for failure.
         /// Only one of these fields will be present in the serialized message.
-        result: Result<Value, RpcError>,
+        result: RpcResult<Value>,
     },
     /// A one-way method invocation.
     Notification {

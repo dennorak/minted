@@ -39,9 +39,8 @@ impl RpcPeer {
     where
         A: ToSocketAddrs,
     {
-        Self::connect_tcp_with_dispatcher_and_config(
-            address, dispatcher, RpcPeerConfig::default(),
-        ).await
+        Self::connect_tcp_with_dispatcher_and_config(address, dispatcher, RpcPeerConfig::default())
+            .await
     }
 
     /// Initiates a connection that can also serve calls from the remote peer, with the given configuration.
@@ -55,6 +54,10 @@ impl RpcPeer {
     {
         let stream = TcpStream::connect(address).await?;
         stream.set_nodelay(true)?;
-        Ok(Self::from_stream_with_config(stream, Some(dispatcher), config))
+        Ok(Self::from_stream_with_config(
+            stream,
+            Some(dispatcher),
+            config,
+        ))
     }
 }

@@ -11,8 +11,7 @@ use tokio::{
 };
 
 use super::super::{
-    RpcCallResult, RpcDispatcher, RpcPeer, RpcPeerConfig,
-    RpcRouter, RoutedDispatcher,
+    RoutedDispatcher, RpcCallResult, RpcDispatcher, RpcPeer, RpcPeerConfig, RpcRouter,
 };
 
 /// Server configuration. The `max_connections` must be positive.
@@ -38,7 +37,9 @@ impl Default for RpcServerConfig {
 struct ClosePeerOnDrop(RpcPeer);
 
 impl Drop for ClosePeerOnDrop {
-    fn drop(&mut self) { self.0.close(); }
+    fn drop(&mut self) {
+        self.0.close();
+    }
 }
 
 /// RPC server. Accepts connections and dispatches calls to the given router.
@@ -67,12 +68,19 @@ impl<S> RpcServer<S> {
 
     /// Create a new server with the given shared state and router. The state is shared with all connections, and the router is used to dispatch incoming calls.
     pub fn from_shared(state: Arc<S>, router: Arc<RpcRouter<S>>) -> Self {
-        Self { state, router, config: RpcServerConfig::default() }
+        Self {
+            state,
+            router,
+            config: RpcServerConfig::default(),
+        }
     }
 
     /// Set the server configuration. The `max_connections` must be positive.
     pub fn with_config(mut self, config: RpcServerConfig) -> Self {
-        assert!(config.max_connections > 0, "max_connections must be positive");
+        assert!(
+            config.max_connections > 0,
+            "max_connections must be positive"
+        );
         self.config = config;
         self
     }
@@ -92,14 +100,11 @@ impl<S: Send + Sync + 'static> RpcServer<S> {
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
-        let dispatcher: Arc<dyn RpcDispatcher> = Arc::new(
-            RoutedDispatcher::from_shared(
-                Arc::clone(&self.state), Arc::clone(&self.router),
-            )
-        );
-        RpcPeer::from_stream_with_shared_codec(
-            stream, Some(dispatcher), self.config.peer,
-        )
+        let dispatcher: Arc<dyn RpcDispatcher> = Arc::new(RoutedDispatcher::from_shared(
+            Arc::clone(&self.state),
+            Arc::clone(&self.router),
+        ));
+        RpcPeer::from_stream_with_shared_codec(stream, Some(dispatcher), self.config.peer)
     }
 
     /// Run a single connection until it closes. To make reverse calls,
@@ -127,9 +132,9 @@ impl<S: Send + Sync + 'static> RpcServer<S> {
     /// Run a TCP server on the given listener. The server will accept connections
     /// until the returned future is dropped. Each connection is handled in a
     /// separate task, and the `on_connect` callback is called for each new peer.
-    pub async fn serve_listener(&self, listener: TcpListener) -> RpcCallResult<()>
-    {
-        self.serve_listener_until(listener, std::future::pending::<()>()).await
+    pub async fn serve_listener(&self, listener: TcpListener) -> RpcCallResult<()> {
+        self.serve_listener_until(listener, std::future::pending::<()>())
+            .await
     }
 
     /// Run a TCP server on the given listener until the `shutdown` future resolves.
@@ -143,7 +148,8 @@ impl<S: Send + Sync + 'static> RpcServer<S> {
     where
         Stop: Future<Output = ()>,
     {
-        self.serve_listener_until_with(listener, |_| async {}, shutdown).await
+        self.serve_listener_until_with(listener, |_| async {}, shutdown)
+            .await
     }
 
     /// `on_connect` is given a cloneable peer handle. It can initiate reverse

@@ -1,7 +1,15 @@
-[package]
-name = "minted"
+[workspace]
+resolver = "3"
+members = [".", "macros"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+
+[package]
+name = "minted"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]
 # general
@@ -10,12 +18,12 @@ minted-macros.path = "./macros"
 thiserror = "2.0.21"
 paste = "1.0.15"
 # rpc
-tokio = { version = "1.54.1", features = ["rt", "macros", "io-util", "sync", "time"], optional = true }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "io-util", "sync", "time"], optional = true }
 async-trait = { version = "0.1.92", optional = true }
 reqwest = { version = "0.13.5", optional = true }
 
 [features]
-default = ["rpc-tcp"]
+default = []
 introspect = ["minted-macros/introspect"]
 rpc = ["minted-macros/rpc", "dep:tokio", "dep:async-trait"]
 rpc-tcp = ["rpc", "tokio/net"]

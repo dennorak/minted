@@ -49,12 +49,9 @@ impl RpcErrorCode {
     pub const APPLICATION_BASE: u32 = 10_000;
 
     /// Construct an application-specific code, if it is in the reserved range.
-    pub const fn application(code: u32) -> Option<Self> {
-        if code >= Self::APPLICATION_BASE {
-            Some(Self(code))
-        } else {
-            None
-        }
+    pub fn application(code: u32) -> Self {
+        assert!(code >= Self::APPLICATION_BASE, "application error code must be >= {}", Self::APPLICATION_BASE);
+        Self(code)
     }
 
     /// Parse a wire error code, retaining unknown nonzero values.
@@ -167,6 +164,11 @@ impl RpcError {
     /// Build an unavailable-service error.
     pub fn unavailable() -> Self {
         Self::new(RpcErrorCode::UNAVAILABLE, "Service unavailable")
+    }
+
+    /// Build an application-specific error with a custom code.
+    pub fn application(code: u32, message: impl Into<String>) -> Self {
+        Self::new(RpcErrorCode::application(code), message)
     }
 
     /// Encode this remote error using Minted's dynamic value format.

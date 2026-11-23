@@ -8,8 +8,8 @@ use std::io;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
+use super::{RpcCallError, RpcError, RpcMessage, RpcProtocolError};
 use crate::{Key, Value, Values};
-use super::{RpcCallError, RpcMessage, RpcProtocolError, RpcError};
 
 pub const PROTOCOL_VERSION: u8 = 1;
 pub const DEFAULT_MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
@@ -42,8 +42,12 @@ pub fn message_into_value(message: RpcMessage) -> Value {
             fields.insert("type".into(), "response".into());
             fields.insert("id".into(), Value::Uint(id));
             match result {
-                Ok(value) => { fields.insert("result".into(), value); }
-                Err(error) => { fields.insert("error".into(), error.into_value()); }
+                Ok(value) => {
+                    fields.insert("result".into(), value);
+                }
+                Err(error) => {
+                    fields.insert("error".into(), error.into_value());
+                }
             }
         }
         RpcMessage::Notification { method, params } => {
@@ -58,21 +62,27 @@ pub fn message_into_value(message: RpcMessage) -> Value {
 fn required_id(fields: &mut Values) -> Result<u64, RpcProtocolError> {
     match take(fields, "id") {
         Some(Value::Uint(id)) => Ok(id),
-        _ => Err(RpcProtocolError::InvalidMessage("expected unsigned request ID")),
+        _ => Err(RpcProtocolError::InvalidMessage(
+            "expected unsigned request ID",
+        )),
     }
 }
 
 fn required_method(fields: &mut Values) -> Result<String, RpcProtocolError> {
     match take(fields, "method") {
         Some(Value::String(name)) if !name.is_empty() => Ok(name),
-        _ => Err(RpcProtocolError::InvalidMessage("expected non-empty method name")),
+        _ => Err(RpcProtocolError::InvalidMessage(
+            "expected non-empty method name",
+        )),
     }
 }
 
 /// Decode the wire envelope. Unknown keys are ignored for forward compatibility.
 pub fn message_from_value(value: Value) -> Result<RpcMessage, RpcProtocolError> {
     let Value::Object(mut fields) = value else {
-        return Err(RpcProtocolError::InvalidMessage("RPC envelope must be an object"));
+        return Err(RpcProtocolError::InvalidMessage(
+            "RPC envelope must be an object",
+        ));
     };
 
     match take(&mut fields, "type") {
@@ -84,17 +94,20 @@ pub fn message_from_value(value: Value) -> Result<RpcMessage, RpcProtocolError> 
         }),
         Some(Value::String(kind)) if kind == "notification" => Ok(RpcMessage::Notification {
             method: required_method(&mut fields)?,
-            params: take(&mut fields, "params")
-                .ok_or(RpcProtocolError::InvalidMessage("notification missing params"))?,
+            params: take(&mut fields, "params").ok_or(RpcProtocolError::InvalidMessage(
+                "notification missing params",
+            ))?,
         }),
         Some(Value::String(kind)) if kind == "response" => {
             let id = required_id(&mut fields)?;
             let result = match (take(&mut fields, "result"), take(&mut fields, "error")) {
                 (Some(value), None) => Ok(value),
                 (None, Some(error)) => Err(RpcError::try_from(&error)?),
-                _ => return Err(RpcProtocolError::InvalidMessage(
-                    "response must have exactly one of result or error",
-                )),
+                _ => {
+                    return Err(RpcProtocolError::InvalidMessage(
+                        "response must have exactly one of result or error",
+                    ));
+                }
             };
             Ok(RpcMessage::Response { id, result })
         }
@@ -122,7 +135,8 @@ pub async fn read_message<R: AsyncRead + Unpin>(
         return Err(RpcProtocolError::FrameTooLarge {
             size: length,
             max: max_frame_bytes,
-        }.into());
+        }
+        .into());
     }
     if length < 1 {
         return Err(RpcProtocolError::InvalidMessage("empty RPC frame").into());
@@ -135,7 +149,8 @@ pub async fn read_message<R: AsyncRead + Unpin>(
         return Err(RpcProtocolError::UnsupportedVersion {
             received: version,
             expected: PROTOCOL_VERSION,
-        }.into());
+        }
+        .into());
     }
 
     let value = Value::from_bytes(&data[1..])
@@ -150,16 +165,22 @@ pub async fn write_message<W: AsyncWrite + Unpin>(
     max_frame_bytes: usize,
 ) -> Result<(), RpcCallError> {
     let value = message_into_value(message);
-    let payload = value.to_bytes()
+    let payload = value
+        .to_bytes()
         .map_err(|e| RpcProtocolError::Encode(format!("failed to encode RPC frame: {e}")))?;
-    let length = payload.len().checked_add(1).ok_or(
-        RpcProtocolError::FrameTooLarge { size: usize::MAX, max: max_frame_bytes },
-    )?;
+    let length = payload
+        .len()
+        .checked_add(1)
+        .ok_or(RpcProtocolError::FrameTooLarge {
+            size: usize::MAX,
+            max: max_frame_bytes,
+        })?;
     if length > max_frame_bytes || length > u32::MAX as usize {
         return Err(RpcProtocolError::FrameTooLarge {
             size: length,
             max: max_frame_bytes.min(u32::MAX as usize),
-        }.into());
+        }
+        .into());
     }
 
     writer.write_all(&(length as u32).to_be_bytes()).await?;
@@ -171,22 +192,35 @@ pub async fn write_message<W: AsyncWrite + Unpin>(
 
 #[cfg(test)]
 mod tests {
+    use super::super::{RpcError, RpcErrorCode};
     use super::*;
-    use super::super::{RpcErrorCode, RpcError};
 
     #[test]
     fn envelopes_round_trip() {
         let cases = [
-            RpcMessage::Request { id: 7, method: "math.add".into(), params: Value::Null },
-            RpcMessage::Response { id: 7, result: Ok(Value::Uint(42)) },
+            RpcMessage::Request {
+                id: 7,
+                method: "math.add".into(),
+                params: Value::Null,
+            },
+            RpcMessage::Response {
+                id: 7,
+                result: Ok(Value::Uint(42)),
+            },
             RpcMessage::Response {
                 id: 7,
                 result: Err(RpcError::new(RpcErrorCode::NOT_FOUND, "not found")),
             },
-            RpcMessage::Notification { method: "ping".into(), params: Value::Bool(true) },
+            RpcMessage::Notification {
+                method: "ping".into(),
+                params: Value::Bool(true),
+            },
         ];
         for message in cases {
-            assert_eq!(message_from_value(message_into_value(message.clone())).unwrap(), message);
+            assert_eq!(
+                message_from_value(message_into_value(message.clone())).unwrap(),
+                message
+            );
         }
     }
 

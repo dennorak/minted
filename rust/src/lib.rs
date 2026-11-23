@@ -18,6 +18,15 @@
 #![cfg_attr(not(debug_assertions), deny(warnings))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+/// Transport-independent, bidirectional async RPC for Minted.
+pub mod prelude {
+    pub use super::*;
+    #[cfg(feature = "rpc")]
+    pub use super::rpc::*;
+    #[cfg(feature = "introspect")]
+    pub use super::introspect::*;
+}
+
 const SPECIALCASE_LIST_KEY: u8 = 0xFF;
 
 mod value;

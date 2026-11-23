@@ -7,8 +7,8 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex, Weak,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -16,17 +16,15 @@ use std::{
 use async_trait::async_trait;
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt},
-    sync::{
-        broadcast, mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore,
-    },
+    sync::{OwnedSemaphorePermit, Semaphore, broadcast, mpsc, oneshot, watch},
     task::JoinSet,
 };
 
 use crate::Value;
 
 use super::{
-    codec::{read_message, write_message, DEFAULT_MAX_FRAME_BYTES},
     RpcCallError, RpcCallResult, RpcError, RpcMessage, RpcResult,
+    codec::{DEFAULT_MAX_FRAME_BYTES, read_message, write_message},
 };
 
 /// The connection-independent entry point for incoming methods.
@@ -39,12 +37,7 @@ pub trait RpcDispatcher: Send + Sync {
     /// to initiate reverse calls on the same connection. The `method` is the
     /// requested method name, and `params` is the Minted value sent by the
     /// remote peer. The result is sent back to the caller if this was a request.
-    async fn dispatch(
-        &self,
-        context: &RpcContext,
-        method: &str,
-        params: &Value,
-    ) -> RpcResult;
+    async fn dispatch(&self, context: &RpcContext, method: &str, params: &Value) -> RpcResult;
 }
 
 /// Configuration for a single RPC connection. The default is suitable for
@@ -81,10 +74,19 @@ impl Default for RpcPeerConfig {
 impl RpcPeerConfig {
     fn validate(self) {
         assert!(self.max_frame_bytes > 0, "max_frame_bytes must be positive");
-        assert!(self.outbound_capacity > 0, "outbound_capacity must be positive");
+        assert!(
+            self.outbound_capacity > 0,
+            "outbound_capacity must be positive"
+        );
         assert!(self.max_in_flight > 0, "max_in_flight must be positive");
-        assert!(self.max_pending_requests > 0, "max_pending_requests must be positive");
-        assert!(self.notification_capacity > 0, "notification_capacity must be positive");
+        assert!(
+            self.max_pending_requests > 0,
+            "max_pending_requests must be positive"
+        );
+        assert!(
+            self.notification_capacity > 0,
+            "notification_capacity must be positive"
+        );
         assert!(self.event_capacity > 0, "event_capacity must be positive");
     }
 }
@@ -108,12 +110,12 @@ pub enum RpcPeerEvent {
         method: String,
         /// The error that occurred.
         error: RpcError,
-    },  
+    },
     /// A notification was dropped because the handler queue was full. The
     /// notification is still observable via `subscribe_notifications()`.
-    NotificationDropped { 
+    NotificationDropped {
         /// The name of the method that was dropped.
-        method: String 
+        method: String,
     },
     /// The connection was closed or an I/O error occurred. All pending calls
     /// are cancelled, and the peer is no longer usable.
@@ -129,7 +131,9 @@ pub struct RpcContext {
 
 impl RpcContext {
     fn new(inner: &Arc<PeerInner>) -> Self {
-        Self { inner: Arc::downgrade(inner) }
+        Self {
+            inner: Arc::downgrade(inner),
+        }
     }
 
     /// Obtain a cheap, owned peer handle, if the connection is still open.
@@ -179,13 +183,20 @@ impl PeerInner {
     fn close(&self) {
         if !self.closed.swap(true, Ordering::AcqRel) {
             self.pending_slots.close();
-            self.pending.lock().expect("RPC pending mutex poisoned").clear();
+            self.pending
+                .lock()
+                .expect("RPC pending mutex poisoned")
+                .clear();
             self.shutdown.send_replace(true);
         }
     }
 
     fn complete(&self, id: u64, result: RpcResult) {
-        let sender = self.pending.lock().expect("RPC pending mutex poisoned").remove(&id);
+        let sender = self
+            .pending
+            .lock()
+            .expect("RPC pending mutex poisoned")
+            .remove(&id);
         if let Some(sender) = sender {
             let _ = sender.send(result.map_err(RpcCallError::Remote));
         }
@@ -207,7 +218,11 @@ struct PendingGuard {
 
 impl Drop for PendingGuard {
     fn drop(&mut self) {
-        self.inner.pending.lock().expect("RPC pending mutex poisoned").remove(&self.id);
+        self.inner
+            .pending
+            .lock()
+            .expect("RPC pending mutex poisoned")
+            .remove(&self.id);
     }
 }
 
@@ -223,10 +238,7 @@ impl RpcPeer {
 
     /// Start a peer without registered incoming methods. Incoming requests
     /// receive METHOD_NOT_FOUND; notifications remain observable.
-    pub fn from_stream_with_dispatcher<T>(
-        stream: T,
-        dispatcher: Arc<dyn RpcDispatcher>,
-    ) -> Self
+    pub fn from_stream_with_dispatcher<T>(stream: T, dispatcher: Arc<dyn RpcDispatcher>) -> Self
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
@@ -274,12 +286,8 @@ impl RpcPeer {
         });
 
         let (reader, writer) = tokio::io::split(stream);
-        tokio::spawn(read_loop(
-            reader, Arc::clone(&inner), dispatcher, config,
-        ));
-        tokio::spawn(write_loop(
-            writer, Arc::clone(&inner), outgoing_rx, config,
-        ));
+        tokio::spawn(read_loop(reader, Arc::clone(&inner), dispatcher, config));
+        tokio::spawn(write_loop(writer, Arc::clone(&inner), outgoing_rx, config));
 
         Self { inner }
     }
@@ -293,7 +301,9 @@ impl RpcPeer {
 
         // Bound the pending table as well as the outgoing channel.
         let permit = Arc::clone(&self.inner.pending_slots)
-            .acquire_owned().await.map_err(|_| RpcCallError::ConnectionClosed)?;
+            .acquire_owned()
+            .await
+            .map_err(|_| RpcCallError::ConnectionClosed)?;
         if self.is_closed() {
             return Err(RpcCallError::ConnectionClosed);
         }
@@ -304,17 +314,29 @@ impl RpcPeer {
             return Err(RpcCallError::ConnectionClosed);
         }
         let (tx, rx) = oneshot::channel();
-        self.inner.pending.lock().expect("RPC pending mutex poisoned").insert(id, tx);
+        self.inner
+            .pending
+            .lock()
+            .expect("RPC pending mutex poisoned")
+            .insert(id, tx);
         let _registration = PendingGuard {
-            inner: Arc::clone(&self.inner), id, _permit: permit,
+            inner: Arc::clone(&self.inner),
+            id,
+            _permit: permit,
         };
         if self.is_closed() {
             return Err(RpcCallError::ConnectionClosed);
         }
 
-        self.inner.outgoing.send(RpcMessage::Request {
-            id, method: method.into(), params,
-        }).await.map_err(|_| RpcCallError::ConnectionClosed)?;
+        self.inner
+            .outgoing
+            .send(RpcMessage::Request {
+                id,
+                method: method.into(),
+                params,
+            })
+            .await
+            .map_err(|_| RpcCallError::ConnectionClosed)?;
 
         rx.await.map_err(|_| RpcCallError::ConnectionClosed)?
     }
@@ -327,7 +349,8 @@ impl RpcPeer {
         duration: Duration,
     ) -> RpcCallResult {
         tokio::time::timeout(duration, self.call(method, params))
-            .await.map_err(|_| RpcCallError::Timeout)?
+            .await
+            .map_err(|_| RpcCallError::Timeout)?
     }
 
     /// Success means accepted into the outgoing queue, not delivered.
@@ -335,9 +358,14 @@ impl RpcPeer {
         if self.is_closed() {
             return Err(RpcCallError::ConnectionClosed);
         }
-        self.inner.outgoing.send(RpcMessage::Notification {
-            method: method.into(), params,
-        }).await.map_err(|_| RpcCallError::ConnectionClosed)
+        self.inner
+            .outgoing
+            .send(RpcMessage::Notification {
+                method: method.into(),
+                params,
+            })
+            .await
+            .map_err(|_| RpcCallError::ConnectionClosed)
     }
 
     /// Observe incoming notifications independent of router dispatch.
@@ -378,7 +406,9 @@ impl RpcPeer {
 impl Clone for RpcPeer {
     fn clone(&self) -> Self {
         self.inner.owner_count.fetch_add(1, Ordering::Relaxed);
-        Self { inner: Arc::clone(&self.inner) }
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
     }
 }
 
@@ -432,7 +462,8 @@ async fn read_loop<R>(
                         // Never wait for a handler permit in the reader: an
                         // active handler may itself be waiting for a callback.
                         let rejected = RpcMessage::Response {
-                            id, result: Err(RpcError::resource_exhausted()),
+                            id,
+                            result: Err(RpcError::resource_exhausted()),
                         };
                         if inner.outgoing.try_send(rejected).is_err() {
                             break Err(RpcCallError::ConnectionClosed);
@@ -446,9 +477,7 @@ async fn read_loop<R>(
                 handlers.spawn(async move {
                     let _permit = permit;
                     let result = match dispatcher {
-                        Some(dispatcher) => {
-                            dispatcher.dispatch(&context, &method, &params).await
-                        }
+                        Some(dispatcher) => dispatcher.dispatch(&context, &method, &params).await,
                         None => Err(RpcError::method_not_found(&method)),
                     };
                     let _ = tx.send(RpcMessage::Response { id, result }).await;
@@ -456,9 +485,12 @@ async fn read_loop<R>(
             }
             RpcMessage::Notification { method, params } => {
                 let _ = inner.notifications.send(RpcNotification {
-                    method: method.clone(), params: params.clone(),
+                    method: method.clone(),
+                    params: params.clone(),
                 });
-                let Some(dispatcher) = dispatcher.clone() else { continue };
+                let Some(dispatcher) = dispatcher.clone() else {
+                    continue;
+                };
                 let permit = match Arc::clone(&capacity).try_acquire_owned() {
                     Ok(permit) => permit,
                     Err(_) => {

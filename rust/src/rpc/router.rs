@@ -10,8 +10,11 @@ use crate::{
 /// It is intentionally weak; storing it does not retain a connection.
 #[async_trait::async_trait]
 pub trait RpcHandler<S>: Send + Sync {
+    /// The name of the method to handle. Must be unique within a router.
     fn name(&self) -> &'static str;
 
+    /// Handle a request. The `state` is the application state associated with
+    /// the router. The `params` are the deserialized parameters of the request.
     async fn handle(
         &self,
         context: &RpcContext,
@@ -20,6 +23,7 @@ pub trait RpcHandler<S>: Send + Sync {
     ) -> RpcResult;
 }
 
+/// A router for incoming RPC calls. Each method name is associated with a handler that implements the method. The router is used by `RpcPeer` to dispatch incoming requests.
 pub struct RpcRouter<S> {
     handlers: HashMap<String, Box<dyn RpcHandler<S>>>,
 }
@@ -29,6 +33,7 @@ impl<S> Default for RpcRouter<S> {
 }
 
 impl<S> RpcRouter<S> {
+    /// Create a new router with no handlers. Handlers can be registered with `register`.
     pub fn new() -> Self {
         Self { handlers: HashMap::new() }
     }
@@ -41,12 +46,14 @@ impl<S> RpcRouter<S> {
         self.handlers.insert(handler.name().to_owned(), Box::new(handler))
     }
 
+    /// Returns true if the router has a handler for the given method name.
     pub fn contains(&self, method: &str) -> bool {
         self.handlers.contains_key(method)
     }
 }
 
 impl<S: Sync> RpcRouter<S> {
+    /// Dispatches a call to the appropriate handler. Returns an error if the method is not found or if the handler returns an error.
     pub async fn dispatch(
         &self,
         context: &RpcContext,
@@ -69,10 +76,12 @@ pub struct RoutedDispatcher<S> {
 }
 
 impl<S> RoutedDispatcher<S> {
+    /// Create a new dispatcher from the given shared state and router. The state is shared with all connections, and the router is used to dispatch incoming calls.
     pub fn new(state: S, router: RpcRouter<S>) -> Self {
         Self::from_shared(Arc::new(state), Arc::new(router))
     }
 
+    /// Create a new dispatcher from the given shared state and router. The state is shared with all connections, and the router is used to dispatch incoming calls.
     pub fn from_shared(state: Arc<S>, router: Arc<RpcRouter<S>>) -> Self {
         Self { state, router }
     }

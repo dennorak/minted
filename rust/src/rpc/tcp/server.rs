@@ -15,9 +15,12 @@ use super::super::{
     RpcRouter, RoutedDispatcher,
 };
 
+/// Server configuration. The `max_connections` must be positive.
 #[derive(Debug, Clone, Copy)]
 pub struct RpcServerConfig {
+    /// Maximum number of concurrent connections. New connections are accepted
     pub max_connections: usize,
+    /// Configuration for each peer. This is cloned for each connection.
     pub peer: RpcPeerConfig,
 }
 
@@ -38,6 +41,7 @@ impl Drop for ClosePeerOnDrop {
     fn drop(&mut self) { self.0.close(); }
 }
 
+/// RPC server. Accepts connections and dispatches calls to the given router.
 pub struct RpcServer<S> {
     state: Arc<S>,
     router: Arc<RpcRouter<S>>,
@@ -55,14 +59,18 @@ impl<S> Clone for RpcServer<S> {
 }
 
 impl<S> RpcServer<S> {
+    /// Create a new server with the given state and router. The state is shared
+    /// with all connections, and the router is used to dispatch incoming calls.
     pub fn new(state: S, router: RpcRouter<S>) -> Self {
         Self::from_shared(Arc::new(state), Arc::new(router))
     }
 
+    /// Create a new server with the given shared state and router. The state is shared with all connections, and the router is used to dispatch incoming calls.
     pub fn from_shared(state: Arc<S>, router: Arc<RpcRouter<S>>) -> Self {
         Self { state, router, config: RpcServerConfig::default() }
     }
 
+    /// Set the server configuration. The `max_connections` must be positive.
     pub fn with_config(mut self, config: RpcServerConfig) -> Self {
         assert!(config.max_connections > 0, "max_connections must be positive");
         self.config = config;
@@ -105,6 +113,9 @@ impl<S: Send + Sync + 'static> RpcServer<S> {
         Ok(())
     }
 
+    /// Run a TCP server on the given address. The server will accept connections
+    /// until the returned future is dropped. Each connection is handled in a
+    /// separate task, and the `on_connect` callback is called for each new peer.
     pub async fn serve_tcp<A, C>(&self, address: A) -> RpcCallResult<()>
     where
         A: ToSocketAddrs,
@@ -113,11 +124,17 @@ impl<S: Send + Sync + 'static> RpcServer<S> {
         self.serve_listener(listener).await
     }
 
+    /// Run a TCP server on the given listener. The server will accept connections
+    /// until the returned future is dropped. Each connection is handled in a
+    /// separate task, and the `on_connect` callback is called for each new peer.
     pub async fn serve_listener(&self, listener: TcpListener) -> RpcCallResult<()>
     {
         self.serve_listener_until(listener, std::future::pending::<()>()).await
     }
 
+    /// Run a TCP server on the given listener until the `shutdown` future resolves.
+    /// Each connection is handled in a separate task, and the `on_connect`
+    /// callback is called for each new peer.
     pub async fn serve_listener_until<Stop>(
         &self,
         listener: TcpListener,

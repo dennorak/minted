@@ -89,17 +89,34 @@ impl RpcPeerConfig {
     }
 }
 
+/// A notification received from the remote peer. Notifications are never
 #[derive(Debug, Clone, PartialEq)]
 pub struct RpcNotification {
+    /// The name of the method to invoke.
     pub method: String,
+    /// The parameters to pass to the method.
     pub params: Value,
 }
 
 /// Local events are never sent on the wire. Broadcast receivers may lag.
 #[derive(Debug, Clone)]
 pub enum RpcPeerEvent {
-    NotificationFailed { method: String, error: RpcError },
-    NotificationDropped { method: String },
+    /// A notification handler returned an error. The notification is still
+    /// observable via `subscribe_notifications()`.
+    NotificationFailed {
+        /// The name of the method that failed.
+        method: String,
+        /// The error that occurred.
+        error: RpcError,
+    },  
+    /// A notification was dropped because the handler queue was full. The
+    /// notification is still observable via `subscribe_notifications()`.
+    NotificationDropped { 
+        /// The name of the method that was dropped.
+        method: String 
+    },
+    /// The connection was closed or an I/O error occurred. All pending calls
+    /// are cancelled, and the peer is no longer usable.
     ConnectionError(String),
 }
 
@@ -125,10 +142,13 @@ impl RpcContext {
         Ok(RpcPeer { inner })
     }
 
+    /// Issue a request. Responses may arrive in any order. Dropping this
+    /// future removes the pending entry but cannot undo a sent request.
     pub async fn call(&self, method: impl Into<String>, params: Value) -> RpcCallResult {
         self.peer()?.call(method, params).await
     }
 
+    /// Send a notification. Success means accepted into the outgoing queue, not delivered.
     pub async fn notify(&self, method: impl Into<String>, params: Value) -> RpcCallResult<()> {
         self.peer()?.notify(method, params).await
     }

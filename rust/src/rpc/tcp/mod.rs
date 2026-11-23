@@ -1,4 +1,4 @@
+//! TCP transport for RPC.
 mod client;
-pub use client::*;
 mod server;
 pub use server::*;

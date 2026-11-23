@@ -198,7 +198,7 @@ impl Value {
                     let value = Self::from_bytes_inner(reader, None)?;
                     items.insert(key, value);
                 }
-                Ok(Self::Object(items))
+                Ok(Self::Object(items.into()))
             }
             id => Err(Error::new(ErrorKind::UnknownType(id))),
         }

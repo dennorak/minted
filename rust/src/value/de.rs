@@ -172,7 +172,7 @@ impl<'de> de::Deserializer<'de> for Value {
             Value::String(value) => visitor.visit_string(value),
             Value::Bytes(value) => visitor.visit_byte_buf(value),
             Value::List(items) => with_list(items, visitor),
-            Value::Object(entries) => with_object(entries, None, visitor),
+            Value::Object(entries) => with_object(entries.into(), None, visitor),
         }
     }
 
@@ -330,7 +330,7 @@ impl<'de> de::Deserializer<'de> for Value {
         V: Visitor<'de>,
     {
         match self {
-            Value::Object(entries) => with_object(entries, None, visitor),
+            Value::Object(entries) => with_object(entries.into(), None, visitor),
 
             other => Err(wrong_type("object", &other)),
         }
@@ -346,7 +346,7 @@ impl<'de> de::Deserializer<'de> for Value {
         V: Visitor<'de>,
     {
         match self {
-            Value::Object(entries) => with_object(entries, Some(fields), visitor),
+            Value::Object(entries) => with_object(entries.into(), Some(fields), visitor),
 
             other => Err(wrong_type("object", &other)),
         }
@@ -932,7 +932,7 @@ impl<'de> Deserialize<'de> for Value {
                     }
                 }
 
-                Ok(Value::Object(entries))
+                Ok(Value::Object(entries.into()))
             }
         }
 
@@ -995,7 +995,7 @@ mod tests {
                 Key::Hashed(crate::utils::hash_field("health")),
                 Value::Uint(12),
             ),
-        ]));
+        ]).into());
 
         let decoded: Nested = from_value(source).unwrap();
 
@@ -1051,7 +1051,7 @@ mod tests {
         let source = Value::Object(HashMap::from([
             (Key::Hashed(7), Value::Float32(1.5)),
             (Key::String("bytes".into()), Value::Bytes(vec![1, 2, 3])),
-        ]));
+        ]).into());
 
         let decoded: Value = from_value(source.clone()).unwrap();
 
@@ -1089,8 +1089,8 @@ mod context_tests {
             Value::List(vec![Value::Object(HashMap::from([(
                 Key::Hashed(crate::utils::hash_field("count")),
                 Value::String("invalid".into()),
-            )]))]),
-        )]));
+            )]).into())]),
+        )]).into());
         let err = from_value::<Root>(value).unwrap_err();
         assert!(matches!(err.kind, ErrorKind::TypeMismatch { .. }));
         assert_eq!(
@@ -1131,7 +1131,7 @@ mod structured_error_tests {
         let err = from_value::<HashMap<u32, u32>>(Value::Object(HashMap::from([(
             Key::String("bad".into()),
             Value::Uint(1),
-        )])))
+        )]).into()))
         .unwrap_err();
         assert!(matches!(err.kind, ErrorKind::TypeMismatch { .. }));
         assert_eq!(err.context.path, vec![PathSegment::Key("bad".into())]);

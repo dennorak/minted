@@ -1,7 +1,9 @@
 use darling::{FromDeriveInput, FromVariant, ast};
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::{Attribute, DeriveInput, Error, Ident, Result, Type};
+
+use crate::default_static_ident;
 
 #[derive(Debug, FromDeriveInput)]
 #[darling(supports(enum_any))]
@@ -19,6 +21,10 @@ struct TagVariant {
     fields: ast::Fields<syn::Type>,
 
     id: syn::LitInt,
+
+    #[cfg(feature = "introspect")]
+    #[darling(default)]
+    exclude_schema: bool,
 
     #[darling(default)]
     exclude_from: bool,
@@ -60,20 +66,6 @@ impl TagVariant {
             )),
         }
     }
-}
-
-fn default_static_ident(ty: &Type) -> Ident {
-    let s = ty
-        .to_token_stream()
-        .to_string()
-        .chars()
-        .map(|c| match c {
-            c if c.is_ascii_alphanumeric() || c == '_' => c,
-            _ => '_',
-        })
-        .collect::<String>();
-
-    format_ident!("TAG_DEFAULT_{}", s)
 }
 
 pub fn derive(input: &DeriveInput) -> Result<TokenStream2> {
@@ -245,6 +237,55 @@ pub fn derive(input: &DeriveInput) -> Result<TokenStream2> {
                                     #enum_name::#name(value) => Ok(value),
                                     _ => Err(()),
                                 }
+                            }
+                        }
+                    });
+                }
+
+                #[cfg(feature = "introspect")]
+                if !variant.exclude_schema {
+                    segments.push(quote! {
+                        impl<'a> crate::introspect::IntrospectValue<'a> for #ty {
+                            type View = &'a Self;
+                            type ViewMut = &'a mut Self;
+
+                            fn view(
+                                tag: &'a crate::Value,
+                            ) -> Result<Self::View, crate::introspect::ValueViewError> {
+                                match tag {
+                                    crate::Value::#name(value) => Ok(value),
+                                    _ => Err(crate::introspect::ValueViewError::InvalidCast),
+                                }
+                            }
+
+                            fn view_mut(
+                                tag: &'a mut crate::Value,
+                            ) -> Result<Self::ViewMut, crate::introspect::ValueViewError> {
+                                match tag {
+                                    crate::Value::#name(value) => Ok(value),
+                                    _ => Err(crate::introspect::ValueViewError::InvalidCast),
+                                }
+                            }
+
+                            fn from_tag(
+                                tag: &'a crate::Value,
+                            ) -> Result<Self, crate::introspect::ValueViewError> {
+                                match tag {
+                                    crate::Value::#name(value) => Ok(value.clone()),
+                                    _ => Err(crate::introspect::ValueViewError::InvalidCast),
+                                }
+                            }
+
+                            fn into_tag(self) -> crate::Value {
+                                crate::Value::#name(self)
+                            }
+
+                            fn default_view() -> Self::View {
+                                &#static_default_name
+                            }
+
+                            fn default_value() -> Self {
+                                #static_default_name.clone()
                             }
                         }
                     });

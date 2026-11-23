@@ -22,7 +22,7 @@ const SPECIALCASE_LIST_KEY: u8 = 0xFF;
 
 mod value;
 pub use value::{
-    Key, Value,
+    Key, Value, Values,
     de::from_value,
     ser::{to_value_hashed, to_value_named},
 };
@@ -40,6 +40,9 @@ pub use ser::{to_bytes_hashed, to_bytes_named, to_writer_hashed, to_writer_named
 
 #[cfg(feature = "rpc")]
 pub mod rpc;
+
+#[cfg(feature = "introspect")]
+pub mod introspect;
 
 #[cfg(test)]
 mod tests {
@@ -149,7 +152,7 @@ mod tests {
 
         for &value in &values {
             let mut buf = Vec::new();
-            ser::write_varint(&mut buf, value);
+            ser::write_varint(&mut buf, value).unwrap();
 
             let mut reader = &buf[..];
             let decoded = de::read_varint(&mut reader).unwrap();

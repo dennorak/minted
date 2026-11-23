@@ -90,7 +90,7 @@ fn at_key(error: Error, key: &Key) -> Error {
 }
 
 fn tagged(variant: &str, contents: Value) -> Value {
-    Value::Object(HashMap::from([(Key::String(variant.to_owned()), contents)]))
+    Value::Object(HashMap::from([(Key::String(variant.to_owned()), contents)]).into())
 }
 
 /// Serde serializer whose result is a `Value`.
@@ -508,7 +508,7 @@ impl ser::SerializeMap for MapSerializer {
             return Err(Error::custom("map ended with a missing value"));
         }
 
-        Ok(Value::Object(self.entries))
+        Ok(Value::Object(self.entries.into()))
     }
 }
 
@@ -531,7 +531,7 @@ impl ser::SerializeStruct for MapSerializer {
     }
 
     fn end(self) -> Result<Value, Error> {
-        Ok(Value::Object(self.entries))
+        Ok(Value::Object(self.entries.into()))
     }
 }
 
@@ -579,7 +579,7 @@ impl ser::SerializeStructVariant for StructVariantSerializer {
     }
 
     fn end(self) -> Result<Value, Error> {
-        Ok(tagged(self.variant, Value::Object(self.entries)))
+        Ok(tagged(self.variant, Value::Object(self.entries.into())))
     }
 }
 #[cfg(test)]

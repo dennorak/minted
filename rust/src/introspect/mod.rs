@@ -1,6 +1,6 @@
 //! This module provides the `Introspect` and `IntrospectValue` traits, which allow for type-safe access to values stored in a [`Values`] collection or a [`Value`] value.
 //! These traits are implemented for types that can be represented as a collection of key-value pairs, such as structs and enums.
-use std::sync::LazyLock;
+use std::{collections::HashMap, sync::LazyLock};
 #[cfg(test)]
 mod tests;
 use crate::{Key, Value, Values};
@@ -221,6 +221,59 @@ impl<'a> IntrospectValue<'a> for Values {
     }
 }
 
+impl<'a, K, V> Introspect<'a> for HashMap<K, V>
+where
+    K: Eq + std::hash::Hash + TryFrom<Key> + Into<Key>,
+    V: IntrospectValue<'a>,
+{
+    type View = HashMap<K, V::View>;
+    type ViewMut = HashMap<K, V::ViewMut>;
+
+    fn view(tags: &'a Values) -> Result<Self::View, ValueViewError> {
+        tags.0
+            .iter()
+            .map(|(k, v)| {
+                let key = K::try_from(k.clone())
+                    .map_err(|_| ValueViewError::InvalidCast)?;
+
+                Ok((key, V::view(v)?))
+            })
+            .collect()
+    }
+
+    fn view_mut(tags: &'a mut Values) -> Result<Self::ViewMut, ValueViewError> {
+        tags.0
+            .iter_mut()
+            .map(|(k, v)| {
+                let key = K::try_from(k.clone())
+                    .map_err(|_| ValueViewError::InvalidCast)?;
+
+                Ok((key, V::view_mut(v)?))
+            })
+            .collect()
+    }
+
+    fn from_tags(tags: &'a Values) -> Result<Self, ValueViewError> {
+        tags.0
+            .iter()
+            .map(|(k, v)| {
+                let key = K::try_from(k.clone())
+                    .map_err(|_| ValueViewError::InvalidCast)?;
+
+                Ok((key, V::from_tag(v)?))
+            })
+            .collect()
+    }
+
+    fn into_tags(self) -> Values {
+        Values(
+            self.into_iter()
+                .map(|(k, v)| (k.into(), V::into_tag(v)))
+                .collect()
+        )
+    }
+}
+
 impl IntoIterator for Values {
     type Item = (Key, Value);
     type IntoIter = std::collections::hash_map::IntoIter<Key, Value>;
@@ -273,6 +326,12 @@ where
 {
     fn sub_assign(&mut self, key: S) {
         self.remove(key.into());
+    }
+}
+
+impl std::fmt::Debug for Values {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -576,6 +635,21 @@ impl Values {
         V: Introspect<'a>,
     {
         V::from_tags(self)
+    }
+
+    /// Convert the `Values` collection into a bytes array
+    pub fn to_bytes(self) -> Result<Vec<u8>, crate::error::Error> {
+        Value::Object(self).to_bytes()
+    }
+
+    /// Convert a bytes array into a `Values` collection
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::error::Error> {
+        let value = Value::from_bytes(bytes)?;
+        if let Value::Object(tags) = value {
+            Ok(tags)
+        } else {
+            Err(crate::error::Error::new(crate::error::ErrorKind::TypeMismatch { expected: "Object", found: value.kind().name() }))
+        }
     }
 }
 

@@ -87,7 +87,7 @@ macro_rules! impl_from_tupl {
 impl_from_tupl!(16);
 
 /// A key for a value in a map
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Key {
     /// A string key
     String(String),
@@ -104,19 +104,59 @@ impl std::fmt::Display for Key {
     }
 }
 
+impl From<&str> for Key {
+    fn from(s: &str) -> Self {
+        Key::String(s.to_string())
+    }
+}
+
+impl From<String> for Key {
+    fn from(s: String) -> Self {
+        Key::String(s)
+    }
+}
+
+impl From<u64> for Key {
+    fn from(h: u64) -> Self {
+        Key::Hashed(h)
+    }
+}
+
+impl TryFrom<Key> for String {
+    type Error = ();
+
+    fn try_from(key: Key) -> Result<Self, Self::Error> {
+        match key {
+            Key::String(s) => Ok(s),
+            Key::Hashed(_) => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Key> for u64 {
+    type Error = ();
+
+    fn try_from(key: Key) -> Result<Self, Self::Error> {
+        match key {
+            Key::String(_) => Err(()),
+            Key::Hashed(h) => Ok(h),
+        }
+    }
+}
+
 /// A collection of key-value pairs
 #[cfg(not(feature = "introspect"))]
 pub type Values = HashMap<Key, Value>;
 
 /// A collection of key-value pairs
 #[cfg(feature = "introspect")]
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default)]
 pub struct Values<S: std::hash::BuildHasher = std::hash::RandomState>(
     pub(crate) HashMap<Key, Value, S>,
 );
 
 /// A mint value
-#[derive(Clone, Default, Debug, PartialEq, minted_macros::MintValue)]
+#[derive(Clone, Default, PartialEq, minted_macros::MintValue)]
 pub enum Value {
     /// A blank value
     ///
@@ -155,6 +195,32 @@ pub enum Value {
     #[cfg_attr(not(feature = "introspect"), mint(id = 0x09))]
     #[cfg_attr(feature = "introspect", mint(id = 0x09, exclude_schema))]
     Object(Values),
+}
+
+impl std::fmt::Debug for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Key::String(s) => write!(f, "{:?}", s),
+            Key::Hashed(h) => write!(f, "{:#x}", h),
+        }
+    }
+}
+
+impl std::fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Null => write!(f, "null"),
+            Self::Bool(v) => v.fmt(f),
+            Self::Uint(v) => v.fmt(f),
+            Self::Int(v) => v.fmt(f),
+            Self::Float32(v) => v.fmt(f),
+            Self::Float64(v) => v.fmt(f),
+            Self::String(v) => v.fmt(f),
+            Self::Bytes(v) => v.fmt(f),
+            Self::List(v) => v.fmt(f),
+            Self::Object(v) => v.fmt(f),
+        }
+    }
 }
 
 impl From<&str> for Value {
@@ -204,24 +270,6 @@ impl<T: Into<Value>> From<HashMap<String, T>> for Value {
                 .map(|(k, v)| (Key::String(k), v.into()))
                 .collect(),
         )
-    }
-}
-
-impl From<&str> for Key {
-    fn from(s: &str) -> Self {
-        Key::String(s.to_string())
-    }
-}
-
-impl From<String> for Key {
-    fn from(s: String) -> Self {
-        Key::String(s)
-    }
-}
-
-impl From<u64> for Key {
-    fn from(h: u64) -> Self {
-        Key::Hashed(h)
     }
 }
 

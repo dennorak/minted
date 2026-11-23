@@ -794,7 +794,7 @@ fn generate_schema(
             }
             fn view_mut(
                 tags: &'__tag_view mut #minted::Values,
-            ) -> Result<
+            ) -> ::core::result::Result<
                 Self::ViewMut,
                 #minted::introspect::ValueViewError,
             > {
@@ -892,7 +892,7 @@ fn generate_unit_enum_schema(
             type ViewMut = #minted::introspect::UnitEnum<#lifetime, Self>;
             fn view(
                 tag: &#lifetime #minted::Value,
-            ) -> Result<
+            ) -> ::core::result::Result<
                 Self::View,
                 #minted::introspect::ValueViewError,
             > {
@@ -916,7 +916,7 @@ fn generate_unit_enum_schema(
             }
             fn view_mut(
                 tag: &#lifetime mut #minted::Value,
-            ) -> Result<
+            ) -> ::core::result::Result<
                 Self::ViewMut,
                 #minted::introspect::ValueViewError,
             > {
@@ -924,7 +924,7 @@ fn generate_unit_enum_schema(
             }
             fn from_tag(
                 tag: &#lifetime #minted::Value,
-            ) -> Result<
+            ) -> ::core::result::Result<
                 Self,
                 #minted::introspect::ValueViewError,
             > {
@@ -984,7 +984,7 @@ fn generate_named_enum_schema(
             type ViewMut = #view_mut_name #view_ty_generics;
             fn view(
                 tags: &#lifetime #minted::Values,
-            ) -> Result<Self::View, #minted::introspect::ValueViewError> {
+            ) -> ::core::result::Result<Self::View, #minted::introspect::ValueViewError> {
                 let variant = match tags.get_raw(#minted::Key::from("$type")) {
                     Some(#minted::Value::String(value)) => value.as_str(),
                     Some(_) => {
@@ -1013,7 +1013,10 @@ fn generate_named_enum_schema(
             }
             fn view_mut(
                 tags: &'__tag_view mut #minted::Values,
-            ) -> Result<Self::ViewMut, #minted::introspect::ValueViewError> {
+            ) -> ::core::result::Result<
+                Self::ViewMut,
+                #minted::introspect::ValueViewError,
+            > {
                 let variant = match tags.get_raw(#minted::Key::from("$type")) {
                     Some(#minted::Value::String(value)) => value.clone(),
                     Some(_) => {
@@ -1042,7 +1045,7 @@ fn generate_named_enum_schema(
             }
             fn from_tags(
                 tags: &#lifetime #minted::Values,
-            ) -> Result<Self, #minted::introspect::ValueViewError> {
+            ) -> ::core::result::Result<Self, #minted::introspect::ValueViewError> {
                 let variant = match tags.get_raw(#minted::Key::from("$type")) {
                     Some(#minted::Value::String(value)) => value.as_str(),
                     Some(_) => {

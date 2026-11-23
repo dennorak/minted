@@ -111,7 +111,9 @@ pub type Values = HashMap<Key, Value>;
 /// A collection of key-value pairs
 #[cfg(feature = "introspect")]
 #[derive(Clone, Default, Debug)]
-pub struct Values<S: std::hash::BuildHasher = std::hash::RandomState>(pub(crate) HashMap<Key, Value, S>);
+pub struct Values<S: std::hash::BuildHasher = std::hash::RandomState>(
+    pub(crate) HashMap<Key, Value, S>,
+);
 
 /// A mint value
 #[derive(Clone, Default, Debug, PartialEq, minted_macros::MintValue)]
@@ -155,50 +157,53 @@ pub enum Value {
     Object(Values),
 }
 
-impl From<&str> for Value
-{
-	fn from(value: &str) -> Self { Self::String(value.to_owned()) }
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
 }
 
-impl<'a> TryFrom<&'a Value> for &'a str
-{
-	type Error = ();
+impl<'a> TryFrom<&'a Value> for &'a str {
+    type Error = ();
 
-	fn try_from(value: &'a Value) -> Result<Self, Self::Error>
-	{
-		if let Value::String(s) = value { Ok(s) } else { Err(()) }
-	}
+    fn try_from(value: &'a Value) -> Result<Self, Self::Error> {
+        if let Value::String(s) = value {
+            Ok(s)
+        } else {
+            Err(())
+        }
+    }
 }
 
-impl<'a, T: Into<Value>> From<Vec<T>> for Value
-{
-	fn from(value: Vec<T>) -> Self { Self::List(value.into_iter().map(|v| v.into()).collect()) }
+impl<'a, T: Into<Value>> From<Vec<T>> for Value {
+    fn from(value: Vec<T>) -> Self {
+        Self::List(value.into_iter().map(|v| v.into()).collect())
+    }
 }
 
 impl<'a, T> TryFrom<&'a Value> for Vec<&'a T>
 where
-	&'a T: TryFrom<&'a Value, Error = ()>,
+    &'a T: TryFrom<&'a Value, Error = ()>,
 {
-	type Error = ();
+    type Error = ();
 
-	fn try_from(value: &'a Value) -> Result<Self, Self::Error>
-	{
-		if let Value::List(list) = value
-		{
-			list.iter().map(|v| v.try_into()).collect()
-		}
-		else
-		{
-			Err(())
-		}
-	}
+    fn try_from(value: &'a Value) -> Result<Self, Self::Error> {
+        if let Value::List(list) = value {
+            list.iter().map(|v| v.try_into()).collect()
+        } else {
+            Err(())
+        }
+    }
 }
 
-impl<T: Into<Value>> From<HashMap<String, T>> for Value
-{
-    fn from(value: HashMap<String, T>) -> Self
-    {
-        Self::Object(value.into_iter().map(|(k, v)| (Key::String(k), v.into())).collect())
+impl<T: Into<Value>> From<HashMap<String, T>> for Value {
+    fn from(value: HashMap<String, T>) -> Self {
+        Self::Object(
+            value
+                .into_iter()
+                .map(|(k, v)| (Key::String(k), v.into()))
+                .collect(),
+        )
     }
 }
 

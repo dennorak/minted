@@ -1,5 +1,5 @@
 #![allow(clippy::option_if_let_else)]
-use std::collections::HashSet;
+use crate::minted_path;
 use darling::{
     FromDeriveInput, FromField, FromMeta, FromVariant,
     ast::{Data, Fields},
@@ -7,44 +7,55 @@ use darling::{
 };
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
+use std::collections::HashSet;
 use syn::{
-    Error, Expr, GenericArgument, Generics, Ident, Lifetime, LifetimeParam, LitStr, PathArguments, Result, Type, Visibility,
+    Error, Expr, GenericArgument, Generics, Ident, Lifetime, LifetimeParam, LitStr, PathArguments,
+    Result, Type, Visibility,
 };
-use crate::minted_path;
+
 mod views;
+
 const VIEW_LIFETIME: &str = "__tag_view";
+
 #[derive(Debug, FromDeriveInput)]
-#[darling(attributes(mint), supports(struct_named, enum_named, enum_unit, enum_tuple, enum_newtype))]
+#[darling(
+    attributes(mint),
+    supports(struct_named, enum_named, enum_unit, enum_tuple, enum_newtype)
+)]
 struct SchemaInput {
-    ident:    Ident,
-    vis:      Visibility,
+    ident: Ident,
+    vis: Visibility,
     generics: Generics,
-    data:     Data<VariantInput, FieldInput>,
+    data: Data<VariantInput, FieldInput>,
     #[darling(default)]
     default: bool,
 }
+
 #[derive(Debug, FromField)]
 #[darling(attributes(mint))]
 struct FieldInput {
     ident: Option<Ident>,
-    vis:   Visibility,
-    ty:    Type,
+    vis: Visibility,
+    ty: Type,
     #[darling(flatten)]
     args: FieldArgs,
 }
+
 #[derive(Debug, FromVariant)]
 #[darling(attributes(mint))]
 struct VariantInput {
-    ident:  Ident,
+    ident: Ident,
     fields: darling::ast::Fields<FieldInput>,
     #[darling(flatten)]
     args: VariantArgs,
 }
+
 #[derive(Debug, Default, FromMeta)]
 struct VariantArgs {
     #[darling(default)]
     key: Option<String>,
 }
+
 #[derive(Debug, Default, FromMeta)]
 struct FieldArgs {
     #[darling(default)]
@@ -54,6 +65,7 @@ struct FieldArgs {
     #[darling(default)]
     skip: bool,
 }
+
 #[derive(Debug, Clone, FromMeta)]
 enum DefaultSpec {
     Default,
@@ -62,17 +74,14 @@ enum DefaultSpec {
     #[darling(rename = "expr")]
     Expr(Expr),
 }
+
 impl FieldArgs {
     fn default(&self, schema_default: bool) -> Option<DefaultSpec> {
-        match &self.default
-        {
-            None =>
-            {
-                if schema_default
-                {
+        match &self.default {
+            None => {
+                if schema_default {
                     Some(DefaultSpec::Default)
-                }
-                else {
+                } else {
                     None
                 }
             }
@@ -81,22 +90,25 @@ impl FieldArgs {
         }
     }
 }
+
 #[derive(Debug)]
 struct EnumVariant {
-    ident:  Ident,
-    key:    String,
+    ident: Ident,
+    key: String,
     fields: Vec<Field>,
     tuple: bool,
 }
+
 #[derive(Debug)]
 struct Field {
-    ident:    Ident,
-    vis:      Visibility,
-    key:      String,
-    ty:       Type,
-    default:  Option<DefaultSpec>,
+    ident: Ident,
+    vis: Visibility,
+    key: String,
+    ty: Type,
+    default: Option<DefaultSpec>,
     optional: bool,
 }
+
 pub fn derive(input: &syn::DeriveInput) -> Result<TokenStream2> {
     let input = SchemaInput::from_derive_input(input)?;
     if input.generics.lifetimes().next().is_some() {
@@ -105,8 +117,7 @@ pub fn derive(input: &syn::DeriveInput) -> Result<TokenStream2> {
             "Tag schema source types must not have lifetime parameters",
         ));
     }
-    match &input.data
-    {
+    match &input.data {
         Data::Struct(fields) => expand_struct_schema(&input, fields),
         Data::Enum(variants) => expand_enum_schema(&input, variants),
     }
@@ -115,45 +126,44 @@ fn expand_struct_schema(input: &SchemaInput, fields: &Fields<FieldInput>) -> Res
     let lifetime = Lifetime::new(&format!("'{VIEW_LIFETIME}"), Span::call_site());
     let mut included = Vec::new();
     let mut skipped = Vec::new();
-    for field in &fields.fields
-    {
-        if field.args.skip
-        {
+    for field in &fields.fields {
+        if field.args.skip {
             let ident = field
                 .ident
                 .as_ref()
                 .expect("named struct field must have an identifier");
             if field.args.key.is_some() {
-                return Err(Error::new_spanned(ident, "`key` cannot be used with `skip`"));
+                return Err(Error::new_spanned(
+                    ident,
+                    "`key` cannot be used with `skip`",
+                ));
             }
             if field.args.default.is_some() {
-                return Err(Error::new_spanned(ident, "`default` cannot be used with `skip`"));
+                return Err(Error::new_spanned(
+                    ident,
+                    "`default` cannot be used with `skip`",
+                ));
             }
             skipped.push(field);
-        }
-        else {
+        } else {
             included.push(normalize_field(field, input.default, None)?);
         }
     }
     generate_schema(input, &included, &skipped, &lifetime)
 }
 fn option_inner(ty: &Type) -> Option<&Type> {
-    let path = match ty
-    {
+    let path = match ty {
         Type::Path(path) if path.qself.is_none() => Some(path),
         _ => None,
     }?;
-    if path.path.segments.len() != 1
-    {
+    if path.path.segments.len() != 1 {
         return None;
     }
     let segment = path.path.segments.first()?;
-    if segment.ident != "Option"
-    {
+    if segment.ident != "Option" {
         return None;
     }
-    let PathArguments::AngleBracketed(arguments) = &segment.arguments
-    else {
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return None;
     };
     match arguments.args.first() {
@@ -161,7 +171,11 @@ fn option_inner(ty: &Type) -> Option<&Type> {
         _ => None,
     }
 }
-fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize>) -> Result<Field> {
+fn normalize_field(
+    field: &FieldInput,
+    schema_default: bool,
+    index: Option<usize>,
+) -> Result<Field> {
     if field.ident.is_none() && index.is_none() {
         return Err(Error::new_spanned(
             &field.ty,
@@ -184,11 +198,16 @@ fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize
         .map(|inner| (inner.clone(), true))
         .unwrap_or_else(|| (field.ty.clone(), false));
     if optional && option_inner(&ty).is_some() {
-        return Err(Error::new_spanned(&field.ty, "nested Option types are not supported"));
+        return Err(Error::new_spanned(
+            &field.ty,
+            "nested Option types are not supported",
+        ));
     }
-    if field.args.default.is_some() && optional
-    {
-        return Err(Error::new_spanned(&ident, "defaults cannot be used on optional fields"));
+    if field.args.default.is_some() && optional {
+        return Err(Error::new_spanned(
+            &ident,
+            "defaults cannot be used on optional fields",
+        ));
     }
     Ok(Field {
         ident,
@@ -199,48 +218,50 @@ fn normalize_field(field: &FieldInput, schema_default: bool, index: Option<usize
         optional,
     })
 }
-fn normalize_enum_variants(variants: &[VariantInput], schema_default: bool) -> Result<Vec<EnumVariant>> {
+fn normalize_enum_variants(
+    variants: &[VariantInput],
+    schema_default: bool,
+) -> Result<Vec<EnumVariant>> {
     let mut result = Vec::with_capacity(variants.len());
     let mut keys = HashSet::new();
-    for variant in variants
-    {
-        let key = variant.args.key.clone().unwrap_or_else(|| variant.ident.to_string());
+    for variant in variants {
+        let key = variant
+            .args
+            .key
+            .clone()
+            .unwrap_or_else(|| variant.ident.to_string());
         if !keys.insert(key.clone()) {
             return Err(Error::new_spanned(
                 &variant.ident,
                 format!("duplicate enum variant key `{key}`"),
             ));
         }
-        let (fields, tuple) = match variant.fields.style
-        {
+        let (fields, tuple) = match variant.fields.style {
             darling::ast::Style::Unit => (Vec::new(), false),
-            darling::ast::Style::Struct =>
-            {
+            darling::ast::Style::Struct => {
                 let mut fields = Vec::with_capacity(variant.fields.fields.len());
-                for field in &variant.fields.fields
-                {
-                    if field.args.skip
-                    {
+                for field in &variant.fields.fields {
+                    if field.args.skip {
                         return Err(Error::new_spanned(
                             &field.ident,
                             "`skip` is not supported on enum variant fields",
                         ));
                     }
                     let field = normalize_field(field, schema_default, None)?;
-                    if field.key == "$type"
-                    {
-                        return Err(Error::new_spanned(&field.ident, "enum field key `$type` is reserved"));
+                    if field.key == "$type" {
+                        return Err(Error::new_spanned(
+                            &field.ident,
+                            "enum field key `$type` is reserved",
+                        ));
                     }
                     fields.push(field);
                 }
                 (fields, false)
             }
-            darling::ast::Style::Tuple =>
-            {
+            darling::ast::Style::Tuple => {
                 let mut fields = Vec::with_capacity(variant.fields.fields.len());
                 for (i, field) in variant.fields.fields.iter().enumerate() {
-                    if field.args.skip
-                    {
+                    if field.args.skip {
                         return Err(Error::new_spanned(
                             &field.ident,
                             "`skip` is not supported on enum variant fields",
@@ -264,22 +285,17 @@ fn normalize_enum_variants(variants: &[VariantInput], schema_default: bool) -> R
 fn view_type_generics(generics: &Generics, lifetime: &Lifetime) -> TokenStream2 {
     let mut params = Vec::new();
     params.push(quote!(#lifetime));
-    for param in &generics.params
-    {
-        match param
-        {
-            syn::GenericParam::Lifetime(param) =>
-            {
+    for param in &generics.params {
+        match param {
+            syn::GenericParam::Lifetime(param) => {
                 let lifetime = &param.lifetime;
                 params.push(quote!(#lifetime));
             }
-            syn::GenericParam::Type(param) =>
-            {
+            syn::GenericParam::Type(param) => {
                 let ident = &param.ident;
                 params.push(quote!(#ident));
             }
-            syn::GenericParam::Const(param) =>
-            {
+            syn::GenericParam::Const(param) => {
                 let ident = &param.ident;
                 params.push(quote!(#ident));
             }
@@ -287,12 +303,15 @@ fn view_type_generics(generics: &Generics, lifetime: &Lifetime) -> TokenStream2 
     }
     if params.is_empty() {
         quote!()
-    }
-    else {
+    } else {
         quote!(<#(#params),*>)
     }
 }
-fn generate_view_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> impl Iterator<Item = TokenStream2> {
+fn generate_view_fields(
+    name: &Ident,
+    fields: &[Field],
+    lifetime: &Lifetime,
+) -> impl Iterator<Item = TokenStream2> {
     let minted = minted_path();
     fields.iter().map(move |field| {
         let ident = &field.ident;
@@ -390,15 +409,17 @@ fn generate_view_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> 
         }
     })
 }
-fn generate_view_mut_fields(fields: &[Field], lifetime: &Lifetime) -> impl Iterator<Item = TokenStream2> {
+fn generate_view_mut_fields(
+    fields: &[Field],
+    lifetime: &Lifetime,
+) -> impl Iterator<Item = TokenStream2> {
     let minted = minted_path();
     fields.iter().enumerate().map(move |(index, field)| {
         let ident = &field.ident;
         let key = &field.key;
         let ty = &field.ty;
         let value = format_ident!("__tag_value_{index}");
-        if field.optional
-        {
+        if field.optional {
             quote! {
                 #ident: match #value {
                     Some(tag) => Some(
@@ -407,8 +428,7 @@ fn generate_view_mut_fields(fields: &[Field], lifetime: &Lifetime) -> impl Itera
                     None => None,
                 }
             }
-        }
-        else {
+        } else {
             quote! {
                 #ident: <#ty as #minted::introspect::IntrospectValue<#lifetime>>::view_mut(
                     #value.ok_or_else(|| #minted::introspect::ValueViewError::Missing {
@@ -495,11 +515,7 @@ fn generate_default_insertions(fields: &[Field]) -> impl Iterator<Item = TokenSt
         })
     })
 }
-fn literal_default_owned(
-    name: &Ident,
-    field: &Field,
-    lifetime: &Lifetime,
-) -> TokenStream2 {
+fn literal_default_owned(name: &Ident, field: &Field, lifetime: &Lifetime) -> TokenStream2 {
     let minted = minted_path();
     let ty = &field.ty;
     let default_ident = format_ident!("__TAG_DEFAULT_{}_{}", name, field.ident);
@@ -509,7 +525,11 @@ fn literal_default_owned(
         )?
     }
 }
-fn generate_from_tags_fields(name: &Ident, fields: &[Field], lifetime: &Lifetime) -> Result<TokenStream2> {
+fn generate_from_tags_fields(
+    name: &Ident,
+    fields: &[Field],
+    lifetime: &Lifetime,
+) -> Result<TokenStream2> {
     let minted = minted_path();
     let generated = fields
         .iter()
@@ -646,8 +666,7 @@ fn generate_into_tags_fields(fields: &[Field]) -> impl Iterator<Item = TokenStre
         let ident = &field.ident;
         let key = &field.key;
         let ty = &field.ty;
-        if field.optional
-        {
+        if field.optional {
             quote! {
                 if let Some(value) = self.#ident {
                     tags.insert(
@@ -657,8 +676,7 @@ fn generate_into_tags_fields(fields: &[Field]) -> impl Iterator<Item = TokenStre
                     );
                 }
             }
-        }
-        else {
+        } else {
             quote! {
                 tags.insert(
                     #minted::Key::from(#key),
@@ -670,13 +688,11 @@ fn generate_into_tags_fields(fields: &[Field]) -> impl Iterator<Item = TokenStre
     })
 }
 fn is_string(ty: &Type) -> bool {
-    let path = match ty
-    {
+    let path = match ty {
         Type::Path(path) if path.qself.is_none() => path,
         _ => return false,
     };
-    if path.path.segments.len() != 1
-    {
+    if path.path.segments.len() != 1 {
         return false;
     }
     path.path
@@ -706,11 +722,7 @@ fn literal_default_static(name: &Ident, field: &Field, expr: &Expr) -> TokenStre
             });
     }
 }
-fn literal_default_view(
-    field: &Field,
-    lifetime: &Lifetime,
-    name: &Ident,
-) -> TokenStream2 {
+fn literal_default_view(field: &Field, lifetime: &Lifetime, name: &Ident) -> TokenStream2 {
     let default_ident = format_ident!("__TAG_DEFAULT_{}_{}", name, field.ident);
     let minted = minted_path();
     let ty = &field.ty;
@@ -725,8 +737,7 @@ fn generate_schema(
     fields: &[Field],
     skipped_fields: &[&FieldInput],
     lifetime: &Lifetime,
-) -> Result<TokenStream2>
-{
+) -> Result<TokenStream2> {
     let view = views::generate_views(input, lifetime, views::ViewInput::Struct { fields })?;
     let name = &input.ident;
     let generics = &input.generics;
@@ -734,14 +745,14 @@ fn generate_schema(
     let view_name = format_ident!("{name}View");
     let view_mut_name = format_ident!("{name}ViewMut");
     let mut view_generics = generics.clone();
-    view_generics
-        .params
-        .insert(0, syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    view_generics.params.insert(
+        0,
+        syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     let view_ty_generics = view_type_generics(generics, lifetime);
     let (view_impl_generics, _, _) = view_generics.split_for_impl();
     let (_, owned_ty_generics, owned_where) = generics.split_for_impl();
-    let default_statics = fields.iter().filter_map(|field| match &field.default
-    {
+    let default_statics = fields.iter().filter_map(|field| match &field.default {
         Some(DefaultSpec::Expr(expr)) => Some(literal_default_static(name, field, expr)),
         _ => None,
     });
@@ -819,38 +830,40 @@ fn generate_schema(
 fn expand_enum_schema(input: &SchemaInput, variants: &[VariantInput]) -> Result<TokenStream2> {
     let variants = normalize_enum_variants(variants, input.default)?;
     if variants.is_empty() {
-        return Err(Error::new_spanned(&input.ident, "empty enums are not supported"));
+        return Err(Error::new_spanned(
+            &input.ident,
+            "empty enums are not supported",
+        ));
     }
     let has_unit = variants.iter().any(|variant| variant.fields.is_empty());
     let has_data = variants.iter().any(|variant| !variant.fields.is_empty());
     let has_tupl = variants.iter().any(|variant| variant.tuple);
     let all_tupl = variants.iter().all(|variant| variant.tuple);
-    if
-        (has_unit && has_data) ||
-        (has_unit && has_tupl) ||
-        (has_tupl && !all_tupl) {
+    if (has_unit && has_data) || (has_unit && has_tupl) || (has_tupl && !all_tupl) {
         return Err(Error::new_spanned(
             &input.ident,
             "enums must contain all of the same kind of variant",
         ));
     }
-    if has_unit
-    {
+    if has_unit {
         generate_unit_enum_schema(input, &variants)
-    }
-    else {
+    } else {
         generate_named_enum_schema(input, &variants, all_tupl)
     }
 }
-fn generate_unit_enum_schema(input: &SchemaInput, variants: &[EnumVariant]) -> Result<TokenStream2> {
+fn generate_unit_enum_schema(
+    input: &SchemaInput,
+    variants: &[EnumVariant],
+) -> Result<TokenStream2> {
     let name = &input.ident;
     let generics = &input.generics;
     let minted = minted_path();
     let lifetime = Lifetime::new(&format!("'{VIEW_LIFETIME}"), Span::call_site());
     let mut impl_generics = generics.clone();
-    impl_generics
-        .params
-        .insert(0, syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    impl_generics.params.insert(
+        0,
+        syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     let (impl_generics, _, where_clause) = impl_generics.split_for_impl();
     let (_, ty_generics, _) = generics.split_for_impl();
     let match_arms = variants.iter().map(|variant| {
@@ -931,9 +944,17 @@ fn generate_unit_enum_schema(input: &SchemaInput, variants: &[EnumVariant]) -> R
         }
     })
 }
-fn generate_named_enum_schema(input: &SchemaInput, variants: &[EnumVariant], is_tupl: bool) -> Result<TokenStream2> {
+fn generate_named_enum_schema(
+    input: &SchemaInput,
+    variants: &[EnumVariant],
+    is_tupl: bool,
+) -> Result<TokenStream2> {
     let lifetime = Lifetime::new(&format!("'{VIEW_LIFETIME}"), Span::call_site());
-    let view = views::generate_views(input, &lifetime, views::ViewInput::Enum { variants, is_tupl })?;
+    let view = views::generate_views(
+        input,
+        &lifetime,
+        views::ViewInput::Enum { variants, is_tupl },
+    )?;
     let name = &input.ident;
     let generics = &input.generics;
     let minted = minted_path();
@@ -941,9 +962,10 @@ fn generate_named_enum_schema(input: &SchemaInput, variants: &[EnumVariant], is_
     let view_name = format_ident!("{name}View");
     let view_mut_name = format_ident!("{name}ViewMut");
     let mut view_generics = generics.clone();
-    view_generics
-        .params
-        .insert(0, syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())));
+    view_generics.params.insert(
+        0,
+        syn::GenericParam::Lifetime(LifetimeParam::new(lifetime.clone())),
+    );
     let view_ty_generics = view_type_generics(generics, &lifetime);
     let (view_impl_generics, _, _) = view_generics.split_for_impl();
     let (_, owned_ty_generics, owned_where) = generics.split_for_impl();
@@ -1063,8 +1085,7 @@ fn generate_enum_view_arms(
     view_name: &Ident,
     lifetime: &Lifetime,
     is_tupl: bool,
-) -> Result<Vec<TokenStream2>>
-{
+) -> Result<Vec<TokenStream2>> {
     variants
         .iter()
         .map(|variant| {
@@ -1081,7 +1102,8 @@ fn generate_enum_view_arms(
                 })
             } else {
                 let ident = &variant.ident;
-                let fields = generate_enum_view_field_initializers(&variant.fields, lifetime, is_tupl);
+                let fields =
+                    generate_enum_view_field_initializers(&variant.fields, lifetime, is_tupl);
                 Ok(quote! {
                     #key => {
                         Ok(#view_name::#ident {
@@ -1098,8 +1120,7 @@ fn generate_enum_view_mut_arms(
     view_mut_name: &Ident,
     lifetime: &Lifetime,
     is_tupl: bool,
-) -> Result<Vec<TokenStream2>>
-{
+) -> Result<Vec<TokenStream2>> {
     let minted = minted_path();
     variants
         .iter()
@@ -1116,11 +1137,11 @@ fn generate_enum_view_mut_arms(
                 let key = &field.key;
                 quote!(&#minted::Key::from(#key))
             });
-            let fields = generate_enum_view_mut_field_initializers(&variant.fields, lifetime, is_tupl);
+            let fields =
+                generate_enum_view_mut_field_initializers(&variant.fields, lifetime, is_tupl);
             let destructure = if bindings.is_empty() {
                 quote! {}
-            }
-            else {
+            } else {
                 quote! {
                     let [#(#bindings),*] =
                         tags.get_many_mut([#(#keys),*]);
@@ -1148,7 +1169,11 @@ fn generate_enum_view_mut_arms(
         })
         .collect()
 }
-fn generate_enum_from_tag_arms(variants: &[EnumVariant], lifetime: &Lifetime, is_tupl: bool) -> Result<Vec<TokenStream2>> {
+fn generate_enum_from_tag_arms(
+    variants: &[EnumVariant],
+    lifetime: &Lifetime,
+    is_tupl: bool,
+) -> Result<Vec<TokenStream2>> {
     let minted = minted_path();
     variants
         .iter()
@@ -1162,8 +1187,7 @@ fn generate_enum_from_tag_arms(variants: &[EnumVariant], lifetime: &Lifetime, is
                     let field_ident = &field.ident;
                     let field_key = &field.key;
                     let ty = &field.ty;
-                    let value = if field.optional
-                    {
+                    let value = if field.optional {
                         quote! {
                             match tags.get_raw(#minted::Key::from(#field_key)) {
                                 Some(tag) => Some(
@@ -1173,8 +1197,7 @@ fn generate_enum_from_tag_arms(variants: &[EnumVariant], lifetime: &Lifetime, is
                                 None => None,
                             }
                         }
-                    }
-                    else {
+                    } else {
                         quote! {
                             <#ty as #minted::introspect::IntrospectValue<#lifetime>>
                                 ::from_tag(
@@ -1218,14 +1241,21 @@ fn generate_enum_from_tag_arms(variants: &[EnumVariant], lifetime: &Lifetime, is
         })
         .collect()
 }
-fn generate_enum_into_tag_arms(variants: &[EnumVariant], is_tupl: bool) -> Result<Vec<TokenStream2>> {
+fn generate_enum_into_tag_arms(
+    variants: &[EnumVariant],
+    is_tupl: bool,
+) -> Result<Vec<TokenStream2>> {
     let minted = minted_path();
     variants
         .iter()
         .map(|variant| {
             let ident = &variant.ident;
             let key = LitStr::new(&variant.key, variant.ident.span());
-            let field_idents = variant.fields.iter().map(|field| &field.ident).collect::<Vec<_>>();
+            let field_idents = variant
+                .fields
+                .iter()
+                .map(|field| &field.ident)
+                .collect::<Vec<_>>();
             let insertions = variant
                 .fields
                 .iter()
@@ -1263,8 +1293,7 @@ fn generate_enum_into_tag_arms(variants: &[EnumVariant], is_tupl: bool) -> Resul
                                 );
                             }
                         }
-                    }
-                    else {
+                    } else {
                         quote! {
                             tags.insert(
                                 #minted::Key::from(#field_key),
@@ -1297,7 +1326,11 @@ fn generate_enum_into_tag_arms(variants: &[EnumVariant], is_tupl: bool) -> Resul
         })
         .collect()
 }
-fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, is_tupl: bool) -> Vec<TokenStream2> {
+fn generate_enum_view_field_initializers(
+    fields: &[Field],
+    lifetime: &Lifetime,
+    is_tupl: bool,
+) -> Vec<TokenStream2> {
     let minted = minted_path();
     fields
         .iter()
@@ -1305,8 +1338,7 @@ fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, 
             let ident = &field.ident;
             let key = &field.key;
             let ty = &field.ty;
-            let value = if field.optional
-            {
+            let value = if field.optional {
                 quote! {
                     match tags.get_raw(#minted::Key::from(#key)) {
                         Some(tag) => Some(
@@ -1316,8 +1348,7 @@ fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, 
                         None => None,
                     }
                 }
-            }
-            else {
+            } else {
                 quote! {
                     <#ty as #minted::introspect::IntrospectValue<#lifetime>>::view(
                         tags.get_raw(#minted::Key::from(#key))
@@ -1341,7 +1372,11 @@ fn generate_enum_view_field_initializers(fields: &[Field], lifetime: &Lifetime, 
         })
         .collect()
 }
-fn generate_enum_view_mut_field_initializers(fields: &[Field], lifetime: &Lifetime, is_tupl: bool) -> Vec<TokenStream2> {
+fn generate_enum_view_mut_field_initializers(
+    fields: &[Field],
+    lifetime: &Lifetime,
+    is_tupl: bool,
+) -> Vec<TokenStream2> {
     let minted = minted_path();
     fields
         .iter()
@@ -1351,8 +1386,7 @@ fn generate_enum_view_mut_field_initializers(fields: &[Field], lifetime: &Lifeti
             let key = &field.key;
             let ty = &field.ty;
             let binding = format_ident!("__tag_value_{index}");
-            let value = if field.optional
-            {
+            let value = if field.optional {
                 quote! {
                     match #binding {
                         Some(tag) => Some(
@@ -1362,8 +1396,7 @@ fn generate_enum_view_mut_field_initializers(fields: &[Field], lifetime: &Lifeti
                         None => None,
                     }
                 }
-            }
-            else {
+            } else {
                 quote! {
                     <#ty as #minted::introspect::IntrospectValue<#lifetime>>::view_mut(
                         #binding.ok_or_else(|| {

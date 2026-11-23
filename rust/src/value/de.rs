@@ -986,16 +986,19 @@ mod tests {
     #[test]
 
     fn hashed_fields_read_by_name() {
-        let source = Value::Object(HashMap::from([
-            (
-                Key::Hashed(crate::utils::hash_field("name")),
-                Value::String("alpha".into()),
-            ),
-            (
-                Key::Hashed(crate::utils::hash_field("health")),
-                Value::Uint(12),
-            ),
-        ]).into());
+        let source = Value::Object(
+            HashMap::from([
+                (
+                    Key::Hashed(crate::utils::hash_field("name")),
+                    Value::String("alpha".into()),
+                ),
+                (
+                    Key::Hashed(crate::utils::hash_field("health")),
+                    Value::Uint(12),
+                ),
+            ])
+            .into(),
+        );
 
         let decoded: Nested = from_value(source).unwrap();
 
@@ -1048,10 +1051,13 @@ mod tests {
     #[test]
 
     fn raw_value_round_trip() {
-        let source = Value::Object(HashMap::from([
-            (Key::Hashed(7), Value::Float32(1.5)),
-            (Key::String("bytes".into()), Value::Bytes(vec![1, 2, 3])),
-        ]).into());
+        let source = Value::Object(
+            HashMap::from([
+                (Key::Hashed(7), Value::Float32(1.5)),
+                (Key::String("bytes".into()), Value::Bytes(vec![1, 2, 3])),
+            ])
+            .into(),
+        );
 
         let decoded: Value = from_value(source.clone()).unwrap();
 
@@ -1084,13 +1090,19 @@ mod context_tests {
 
     #[test]
     fn reports_nested_path() {
-        let value = Value::Object(HashMap::from([(
-            Key::Hashed(crate::utils::hash_field("rows")),
-            Value::List(vec![Value::Object(HashMap::from([(
-                Key::Hashed(crate::utils::hash_field("count")),
-                Value::String("invalid".into()),
-            )]).into())]),
-        )]).into());
+        let value = Value::Object(
+            HashMap::from([(
+                Key::Hashed(crate::utils::hash_field("rows")),
+                Value::List(vec![Value::Object(
+                    HashMap::from([(
+                        Key::Hashed(crate::utils::hash_field("count")),
+                        Value::String("invalid".into()),
+                    )])
+                    .into(),
+                )]),
+            )])
+            .into(),
+        );
         let err = from_value::<Root>(value).unwrap_err();
         assert!(matches!(err.kind, ErrorKind::TypeMismatch { .. }));
         assert_eq!(
@@ -1128,10 +1140,9 @@ mod structured_error_tests {
 
     #[test]
     fn key_mismatch_is_structured() {
-        let err = from_value::<HashMap<u32, u32>>(Value::Object(HashMap::from([(
-            Key::String("bad".into()),
-            Value::Uint(1),
-        )]).into()))
+        let err = from_value::<HashMap<u32, u32>>(Value::Object(
+            HashMap::from([(Key::String("bad".into()), Value::Uint(1))]).into(),
+        ))
         .unwrap_err();
         assert!(matches!(err.kind, ErrorKind::TypeMismatch { .. }));
         assert_eq!(err.context.path, vec![PathSegment::Key("bad".into())]);

@@ -4,12 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# general
 serde = { version = "1.0.229", features = ["derive"] }
 minted-macros.path = "./macros"
+thiserror = "2.0.21"
 paste = "1.0.15"
-serde_bytes = "0.11.19"
+# rpc
+tokio = { version = "1.54.1", features = ["rt", "macros", "io-util", "sync", "time"], optional = true }
+async-trait = { version = "0.1.92", optional = true }
+reqwest = { version = "0.13.5", optional = true }
 
 [features]
-default = ["rpc"]
+default = ["rpc-tcp"]
 introspect = ["minted-macros/introspect"]
-rpc = ["minted-macros/rpc"]
+rpc = ["minted-macros/rpc", "dep:tokio", "dep:async-trait"]
+rpc-tcp = ["rpc", "tokio/net"]
+
+[dev-dependencies]
+serde_bytes = "0.11.19"

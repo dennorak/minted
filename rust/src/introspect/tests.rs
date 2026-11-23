@@ -1,10 +1,9 @@
 extern crate self as minted;
-use minted_macros::Introspect;
-use crate::value;
 use super::*;
+use crate::value;
+use minted_macros::Introspect;
 
-pub fn test_object() -> Values
-{
+pub fn test_object() -> Values {
     #[allow(unused)]
     let mut tags = crate::value! {
         "null" => (),
@@ -23,8 +22,7 @@ pub fn test_object() -> Values
 }
 
 #[test]
-fn test_store_load()
-{
+fn test_store_load() {
     let tags = test_object();
     assert_eq!(tags.get::<()>("null"), Some(()));
     assert_eq!(tags.get::<bool>("bool"), Some(true));
@@ -37,12 +35,14 @@ fn test_store_load()
         tags.get_list::<String>("list"),
         Some(vec!["hello".to_string(), "world".to_string()])
     );
-    assert_eq!(tags.get::<Values>("object"), Some(value! {"nested" => "value".to_owned()}));
+    assert_eq!(
+        tags.get::<Values>("object"),
+        Some(value! {"nested" => "value".to_owned()})
+    );
 }
 
 #[test]
-fn test_extend()
-{
+fn test_extend() {
     let mut tags = value! {"key1" => "value1"};
     tags.extend(value! {"key2" => "value2"});
     assert_eq!(tags.get_ref::<String>("key1"), Some(&"value1".into()));
@@ -50,8 +50,7 @@ fn test_extend()
 }
 
 #[test]
-fn test_add_assign_tag()
-{
+fn test_add_assign_tag() {
     let mut tags = value! {"key1" => "value1"};
     tags += ("key2", 1.0f32);
     assert_eq!(tags.get_ref::<String>("key1"), Some(&"value1".into()));
@@ -59,8 +58,7 @@ fn test_add_assign_tag()
 }
 
 #[test]
-fn test_add_assign_sets()
-{
+fn test_add_assign_sets() {
     let mut tags1 = value! {"key1" => "value1"};
     let tags2 = value! {"key2" => false};
     tags1 += tags2;
@@ -69,8 +67,7 @@ fn test_add_assign_sets()
 }
 
 #[test]
-fn test_sub_assign()
-{
+fn test_sub_assign() {
     let mut tags = value! {"key1" => "value1", "key2" => 42};
     tags -= "key1";
     assert_eq!(tags.get_ref::<String>("key1"), None);
@@ -79,17 +76,15 @@ fn test_sub_assign()
 
 #[derive(Introspect, Clone)]
 #[allow(dead_code)]
-struct Character
-{
-    health:     i64,
-    char_name:  String,
+struct Character {
+    health: i64,
+    char_name: String,
     #[mint(default(expr = "\"Ranger\""))]
     char_class: String,
 }
 
 #[test]
-fn test_tag_view()
-{
+fn test_tag_view() {
     let tags = value! {
         "health" => 100,
         "char_name" => "Aragorn",
@@ -101,8 +96,7 @@ fn test_tag_view()
 }
 
 #[test]
-fn test_tag_view_mut()
-{
+fn test_tag_view_mut() {
     let mut tags = value! {
         "health" => 100,
         "char_name" => "Aragorn",
@@ -118,8 +112,7 @@ fn test_tag_view_mut()
 }
 
 #[derive(Introspect, Clone)]
-struct Nester
-{
+struct Nester {
     char_name: String,
 
     #[mint(key = "char")]
@@ -127,8 +120,7 @@ struct Nester
 }
 
 #[test]
-fn test_nested_tag_view()
-{
+fn test_nested_tag_view() {
     let tags = value! {
         "char_name" => "Aragorn",
         "char" => value!{
@@ -144,8 +136,7 @@ fn test_nested_tag_view()
 }
 
 #[test]
-fn test_nested_tag_view_mut()
-{
+fn test_nested_tag_view_mut() {
     let mut tags = value! {
         "char_name" => "Aragorn",
         "char" => value!{
@@ -163,8 +154,7 @@ fn test_nested_tag_view_mut()
 }
 
 #[derive(Introspect, Clone)]
-struct SuperNester
-{
+struct SuperNester {
     #[mint(key = "int")]
     char_name: i64,
 
@@ -176,8 +166,7 @@ struct SuperNester
 }
 
 #[test]
-fn test_super_nested_tag_view()
-{
+fn test_super_nested_tag_view() {
     let mut tags = value! {
         "int" => 42,
         "char" => value!{
@@ -208,8 +197,7 @@ fn test_super_nested_tag_view()
 }
 
 #[test]
-fn can_clone_out_of_view()
-{
+fn can_clone_out_of_view() {
     let tags = value! {
         "health" => 100,
         "char_name" => "Aragorn",
@@ -220,11 +208,10 @@ fn can_clone_out_of_view()
 }
 
 #[test]
-fn can_use_into_tags()
-{
+fn can_use_into_tags() {
     let view = Character {
-        health:     100,
-        char_name:  "Aragorn".to_string(),
+        health: 100,
+        char_name: "Aragorn".to_string(),
         char_class: "Ranger".to_string(),
     };
     let tags = view.into_tags();
@@ -234,35 +221,35 @@ fn can_use_into_tags()
 }
 
 #[test]
-fn can_use_into_tags_2()
-{
+fn can_use_into_tags_2() {
     let mut tags = value! {
         "health" => 100,
         "char_name" => "Aragorn",
     };
     let view = Character {
-        health:     80,
-        char_name:  "Arbalest".to_string(),
+        health: 80,
+        char_name: "Arbalest".to_string(),
         char_class: "Ranger".to_string(),
     };
     let tags2 = view.into_tags();
     tags += tags2;
     assert_eq!(tags.get::<i64>("health"), Some(80));
-    assert_eq!(tags.get::<String>("char_name"), Some("Arbalest".to_string()));
+    assert_eq!(
+        tags.get::<String>("char_name"),
+        Some("Arbalest".to_string())
+    );
     assert_eq!(tags.get::<String>("char_class"), Some("Ranger".to_string()));
 }
 
 #[derive(Default, Introspect, Clone)]
-enum DefaultEnum
-{
+enum DefaultEnum {
     #[default]
     One,
     Two,
 }
 
 #[derive(Introspect, Clone)]
-struct DefaultStuff
-{
+struct DefaultStuff {
     #[mint(default(expr = "\"teststring\""))]
     oval: String,
 
@@ -277,8 +264,7 @@ struct DefaultStuff
 }
 
 #[test]
-fn can_inherit_tag()
-{
+fn can_inherit_tag() {
     let mut tags = Values::default();
     let view = tags.get_view::<DefaultStuff>().unwrap();
     assert_eq!(view.oval, "teststring");
@@ -293,14 +279,12 @@ fn can_inherit_tag()
 }
 
 #[derive(Introspect, Clone)]
-struct CompoundTest
-{
+struct CompoundTest {
     list: Vec<Character>,
 }
 
 #[test]
-fn can_do_objects()
-{
+fn can_do_objects() {
     let tags = value! {
         "list" => vec![
             value!{
@@ -320,8 +304,7 @@ fn can_do_objects()
 }
 
 #[derive(Introspect, Clone, Default)]
-enum TestUnitEnum
-{
+enum TestUnitEnum {
     #[mint(key = "variant1")]
     #[default]
     Variant1,
@@ -330,30 +313,24 @@ enum TestUnitEnum
 }
 
 #[derive(Introspect, Clone)]
-struct HoldsUnitEnum
-{
+struct HoldsUnitEnum {
     one: TestUnitEnum,
     two: TestUnitEnum,
 }
 
 #[test]
-fn can_do_unit_enum()
-{
+fn can_do_unit_enum() {
     let mut tags = value! {
         "one" => "variant1",
         "two" => "variant2",
     };
     let test = tags.get_view::<HoldsUnitEnum>().unwrap();
-    match test.one
-    {
-        TestUnitEnum::Variant1 =>
-        {}
+    match test.one {
+        TestUnitEnum::Variant1 => {}
         _ => panic!("Expected Variant1"),
     }
-    match test.two
-    {
-        TestUnitEnum::Variant2 =>
-        {}
+    match test.two {
+        TestUnitEnum::Variant2 => {}
         _ => panic!("Expected Variant2"),
     }
     let mut test = tags.get_view_mut::<HoldsUnitEnum>().unwrap();
@@ -362,8 +339,7 @@ fn can_do_unit_enum()
 }
 
 #[derive(Introspect, Clone)]
-enum TestTupleEnum
-{
+enum TestTupleEnum {
     #[mint(key = "variant1")]
     Variant1(i64),
     #[mint(key = "variant2")]
@@ -371,8 +347,7 @@ enum TestTupleEnum
 }
 
 #[test]
-fn can_do_tuple_enum()
-{
+fn can_do_tuple_enum() {
     let tags1 = value! {
         "$type" => "variant1",
         "p0" => 42,
@@ -383,15 +358,12 @@ fn can_do_tuple_enum()
     };
     let test1 = tags1.get_view::<TestTupleEnum>().unwrap();
     let test2 = tags2.get_view_mut::<TestTupleEnum>().unwrap();
-    match test1
-    {
+    match test1 {
         TestTupleEnumView::Variant1(value) => assert_eq!(value, &42),
         _ => panic!("Expected Variant1"),
     }
-    match test2
-    {
-        TestTupleEnumViewMut::Variant2(value) =>
-        {
+    match test2 {
+        TestTupleEnumViewMut::Variant2(value) => {
             assert_eq!(value, "hello");
             *value = "world".to_string();
         }
@@ -401,24 +373,16 @@ fn can_do_tuple_enum()
 }
 
 #[derive(Introspect, Clone)]
-enum TestValueEnum
-{
+enum TestValueEnum {
     #[mint(key = "variant1")]
-    Variant1
-    {
-        value: i64
-    },
+    Variant1 { value: i64 },
 
     #[mint(key = "variant2")]
-    Variant2
-    {
-        value: String
-    },
+    Variant2 { value: String },
 }
 
 #[test]
-fn can_do_value_enum()
-{
+fn can_do_value_enum() {
     let tags1 = value! {
         "$type" => "variant1",
         "value" => 42,
@@ -429,15 +393,12 @@ fn can_do_value_enum()
     };
     let test1 = tags1.get_view::<TestValueEnum>().unwrap();
     let test2 = tags2.get_view_mut::<TestValueEnum>().unwrap();
-    match test1
-    {
+    match test1 {
         TestValueEnumView::Variant1 { value } => assert_eq!(value, &42),
         _ => panic!("Expected Variant1"),
     }
-    match test2
-    {
-        TestValueEnumViewMut::Variant2 { value } =>
-        {
+    match test2 {
+        TestValueEnumViewMut::Variant2 { value } => {
             assert_eq!(value, "hello");
             *value = "world".to_string();
         }
@@ -447,15 +408,13 @@ fn can_do_value_enum()
 }
 
 #[derive(Introspect, Clone)]
-struct BlankDefault
-{
+struct BlankDefault {
     #[mint(default)]
     value: i64,
 }
 
 #[test]
-fn can_use_blank_default()
-{
+fn can_use_blank_default() {
     let tags = Values::default();
     let view = tags.get_view::<BlankDefault>().unwrap();
     assert_eq!(*view.value, 0);
@@ -463,8 +422,7 @@ fn can_use_blank_default()
 
 #[derive(Introspect, Clone)]
 #[mint(default)]
-struct BlankDefaultAll
-{
+struct BlankDefaultAll {
     value1: i64,
     value2: bool,
     value3: String,
@@ -472,8 +430,7 @@ struct BlankDefaultAll
 }
 
 #[test]
-fn can_use_blank_default_all()
-{
+fn can_use_blank_default_all() {
     let tags = Values::default();
     let view = tags.get_view::<BlankDefaultAll>().unwrap();
     assert_eq!(*view.value1, 0);

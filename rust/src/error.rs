@@ -5,6 +5,8 @@
 
 use std::{error, fmt, io, str};
 
+use thiserror::Error;
+
 /// A specialized `Result` type for MINT operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -60,67 +62,74 @@ pub enum PathSegment {
     Variant(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ErrorKind {
     // Binary format / transport
+    #[error("I/O error: {0}")]
     Io(io::Error),
+    #[error("invalid UTF-8: {0}")]
     Utf8(str::Utf8Error),
+    #[error("slice conversion error: {0}")]
     Slice(std::array::TryFromSliceError),
+    #[error("unexpected end of input")]
     UnexpectedEof,
+    #[error("invalid file header")]
     InvalidMagic,
+    #[error("unsupported version {0}")]
     UnsupportedVersion(u32),
+    #[error("unknown key type 0x{0:02X}")]
     UnknownKeyType(u8),
+    #[error("unknown value type 0x{0:02X}")]
     UnknownType(u8),
+    #[error("invalid boolean byte 0x{0:02X}")]
     InvalidBool(u8),
+    #[error("invalid varint")]
     InvalidVarint,
+    #[error("length does not fit in usize")]
     LengthOverflow,
-    LimitExceeded {
-        kind: &'static str,
-        limit: usize,
-    },
-    DepthLimitExceeded {
-        limit: usize,
-    },
-    TrailingBytes {
-        remaining: usize,
-    },
+    #[error("{kind} exceeds limit {limit}")]
+    LimitExceeded { kind: &'static str, limit: usize },
+    #[error("nesting depth exceeds limit {limit}")]
+    DepthLimitExceeded { limit: usize },
+    #[error("{remaining} trailing byte(s) after value")]
+    TrailingBytes { remaining: usize },
 
     // Value / Serde conversion
+    #[error("expected {expected}, found {found}")]
     TypeMismatch {
         expected: &'static str,
         found: &'static str,
     },
+    #[error("keys must be strings or nonnegative integers")]
     InvalidMapKey,
+    #[error("duplicate object key")]
     DuplicateKey,
+    #[error("field hash collision (0x{hash:016X}): {first:?} and {second:?}")]
     FieldHashCollision {
         hash: u64,
         first: &'static str,
         second: &'static str,
     },
-    IntegerOutOfRange {
-        target: &'static str,
-    },
+    #[error("integer out of range for {target}")]
+    IntegerOutOfRange { target: &'static str },
+    #[error("invalid enum representation")]
     InvalidEnum,
-    InvalidEnumRepresentation {
-        reason: &'static str,
-    },
-    MissingEnumPayload {
-        variant_kind: &'static str,
-    },
-    InvalidCharacter {
-        count: usize,
-    },
-    InvalidTupleLength {
-        expected: usize,
-        actual: usize,
-    },
+    #[error("invalid enum representation: {reason}")]
+    InvalidEnumRepresentation { reason: &'static str },
+    #[error("missing {variant_kind} enum variant payload")]
+    MissingEnumPayload { variant_kind: &'static str },
+    #[error("expected exactly one Unicode character, found {count}")]
+    InvalidCharacter { count: usize },
+    #[error("expected tuple of length {expected}, found {actual}")]
+    InvalidTupleLength { expected: usize, actual: usize },
+    #[error("{container} has {remaining} unconsumed element(s)")]
     UnconsumedElements {
         container: &'static str,
         remaining: usize,
     },
-    InvalidDeserializerState {
-        operation: &'static str,
-    },
+    #[error("invalid deserializer state: {operation}")]
+    InvalidDeserializerState { operation: &'static str },
+    #[error("{0}")]
     Message(String),
 }
 
@@ -217,66 +226,6 @@ fn is_identifier(name: &str) -> bool {
         && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Io(e) => write!(f, "I/O error: {e}"),
-            Self::Utf8(e) => write!(f, "invalid UTF-8: {e}"),
-            Self::Slice(e) => write!(f, "slice conversion error: {e}"),
-            Self::UnexpectedEof => f.write_str("unexpected end of MINT input"),
-            Self::InvalidMagic => f.write_str("invalid MINT file header"),
-            Self::UnsupportedVersion(v) => write!(f, "unsupported MINT version {v}"),
-            Self::UnknownType(tag) => write!(f, "unknown MINT value type 0x{tag:02X}"),
-            Self::UnknownKeyType(tag) => write!(f, "unknown MINT key type 0x{tag:02X}"),
-            Self::InvalidBool(b) => write!(f, "invalid MINT boolean byte 0x{b:02X}"),
-            Self::InvalidVarint => f.write_str("invalid MINT varint"),
-            Self::LengthOverflow => f.write_str("MINT length does not fit in usize"),
-            Self::LimitExceeded { kind, limit } => write!(f, "MINT {kind} exceeds limit {limit}"),
-            Self::DepthLimitExceeded { limit } => {
-                write!(f, "MINT nesting depth exceeds limit {limit}")
-            }
-            Self::TrailingBytes { remaining } => {
-                write!(f, "{remaining} trailing byte(s) after MINT value")
-            }
-            Self::TypeMismatch { expected, found } => {
-                write!(f, "expected {expected}, found {found}")
-            }
-            Self::InvalidMapKey => f.write_str("MINT keys must be strings or nonnegative integers"),
-            Self::DuplicateKey => f.write_str("duplicate MINT object key"),
-            Self::FieldHashCollision {
-                hash,
-                first,
-                second,
-            } => write!(
-                f,
-                "MINT field hash collision (0x{hash:016X}): {first:?} and {second:?}"
-            ),
-            Self::IntegerOutOfRange { target } => write!(f, "integer out of range for {target}"),
-            Self::InvalidEnum => f.write_str("invalid MINT enum representation"),
-            Self::InvalidEnumRepresentation { reason } => {
-                write!(f, "invalid MINT enum representation: {reason}")
-            }
-            Self::MissingEnumPayload { variant_kind } => {
-                write!(f, "missing {variant_kind} enum variant payload")
-            }
-            Self::InvalidCharacter { count } => {
-                write!(f, "expected exactly one Unicode character, found {count}")
-            }
-            Self::InvalidTupleLength { expected, actual } => {
-                write!(f, "expected tuple of length {expected}, found {actual}")
-            }
-            Self::UnconsumedElements {
-                container,
-                remaining,
-            } => write!(f, "{container} has {remaining} unconsumed element(s)"),
-            Self::InvalidDeserializerState { operation } => {
-                write!(f, "invalid deserializer state: {operation}")
-            }
-            Self::Message(message) => f.write_str(message),
-        }
-    }
-}
-
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self.kind {
@@ -332,7 +281,7 @@ mod tests {
             .at_field("player");
         assert_eq!(
             error.to_string(),
-            "unknown MINT value type 0xFE at byte 0x1A4 (path: $.player.inventory[3])"
+            "unknown value type 0xFE at byte 0x1A4 (path: $.player.inventory[3])"
         );
     }
 

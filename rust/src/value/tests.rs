@@ -112,10 +112,7 @@ fn bytes_roundtrip() {
         #[cfg(not(feature = "introspect"))]
         let it = fields.get(&Key::String("bytes".into()));
 
-        assert_eq!(
-            it,
-            Some(&Value::Bytes(original.bytes.clone())),
-        );
+        assert_eq!(it, Some(&Value::Bytes(original.bytes.clone())),);
 
         let decoded: Test = from_value(value).unwrap();
         assert_eq!(decoded, original);
@@ -296,7 +293,6 @@ fn invalid_map_key() {
     assert!(to_value_hashed(&map).is_err());
 }
 
-
 #[test]
 fn test_macro() {
     let value = value! {
@@ -326,7 +322,7 @@ fn test_macro() {
             "key1" => "Unit",
             "key2" => value! { "NewType" => 123 },
             "key3" => value! { "Tuple" => (456, "Tuple") },
-            "key4" => value! { 
+            "key4" => value! {
                 "Struct" => value! {
                     "a" => 789,
                     "b" => "Struct",
